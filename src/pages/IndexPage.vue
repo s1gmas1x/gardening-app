@@ -39,6 +39,13 @@
 
         <GardenCanvas />
 
+        <GardenPlanOverviewCard
+          :areas="plantingOverview"
+          :area-count="gardenStore.beds.length"
+          :crop-plan-count="plantingOverviewCropPlanCount"
+          @focus-area="focusArea"
+        />
+
         <ScheduleSettingsCard
           :zip-code="scheduleStore.zipCode"
           :location-name="scheduleStore.locationName"
@@ -105,6 +112,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import GardenCanvas from 'src/components/garden/GardenCanvas.vue'
 import GardenDimensionsDialog from 'src/components/garden/GardenDimensionsDialog.vue'
+import GardenPlanOverviewCard from 'src/components/garden/GardenPlanOverviewCard.vue'
 import PropagationTrayBoard from 'src/components/garden/PropagationTrayBoard.vue'
 import PlannerTaskList from 'src/components/garden/PlannerTaskList.vue'
 import PlantingCalendarCard from 'src/components/garden/PlantingCalendarCard.vue'
@@ -112,6 +120,8 @@ import ScheduleSettingsCard from 'src/components/garden/ScheduleSettingsCard.vue
 import GardenSetupForm from 'src/components/garden/GardenSetupForm.vue'
 import GardenToolbar from 'src/components/garden/GardenToolbar.vue'
 import { useGardenStore } from 'src/stores/garden-store'
+import { usePlantStore } from 'src/stores/plant-store'
+import { usePlanningStore } from 'src/stores/planning-store'
 import {
   ASSIGNMENT_STATUS_OPTIONS,
   TRAY_STATUS_OPTIONS,
@@ -120,6 +130,8 @@ import {
 import { useScheduleStore } from 'src/stores/schedule-store'
 
 const gardenStore = useGardenStore()
+const plantStore = usePlantStore()
+const planningStore = usePlanningStore()
 const propagationStore = usePropagationStore()
 const scheduleStore = useScheduleStore()
 const isGardenDimensionsOpen = ref(false)
@@ -172,6 +184,10 @@ function focusTaskArea(task) {
   gardenStore.setSelectedBed(task.areaId)
 }
 
+function focusArea(areaId) {
+  gardenStore.setSelectedBed(areaId)
+}
+
 function quickAssignDemandToNewTray(demand) {
   const tray = propagationStore.createTray(72)
   propagationStore.assignCropPlanToTray(demand.cropPlanId, tray.id, demand.remainingCells)
@@ -201,6 +217,50 @@ const plannerTasks = computed(() => scheduleStore.plantingTasks.map((task) => ({
 const completedTaskCount = computed(() => plannerTasks.value.filter((task) => task.done).length)
 const trayDemands = computed(() => propagationStore.indoorStartDemands)
 const traySummaries = computed(() => propagationStore.traySummaries)
+const plantingOverview = computed(() => gardenStore.beds.map((area) => {
+  const cropPlans = planningStore.getCropPlansByAreaId(area.id)
+  const areaPlantings = planningStore.getPlantingsByAreaId(area.id)
+
+  return {
+    id: area.id,
+    name: area.name,
+    typeLabel: area.type === 'raised'
+      ? 'Raised Bed'
+      : area.type === 'pot'
+        ? 'Pot'
+        : 'Regular Bed',
+    widthFeet: area.widthFeet,
+    heightFeet: area.heightFeet,
+    bedHeightInches: area.bedHeightInches,
+    plannedCount: cropPlans.reduce((sum, cropPlan) => sum + cropPlan.targetQuantity, 0),
+    placedCount: areaPlantings.length,
+    remainingCount: cropPlans.reduce((sum, cropPlan) => {
+      const placedCount = areaPlantings.filter((planting) => planting.plantId === cropPlan.plantId).length
+      return sum + Math.max(cropPlan.targetQuantity - placedCount, 0)
+    }, 0),
+    cropPlans: cropPlans.map((cropPlan) => {
+      const plant = plantStore.getPlantById(cropPlan.plantId)
+      const placedCount = areaPlantings.filter((planting) => planting.plantId === cropPlan.plantId).length
+
+      return {
+        id: cropPlan.id,
+        plantName: plant?.name ?? cropPlan.plantId,
+        color: plant?.color ?? '#4b5f49',
+        targetQuantity: cropPlan.targetQuantity,
+        placedCount,
+        remainingCount: Math.max(cropPlan.targetQuantity - placedCount, 0),
+        methodLabel: cropPlan.method === 'indoor_start'
+          ? 'Indoor Start'
+          : cropPlan.method === 'transplant'
+            ? 'Transplant'
+            : 'Direct Sow',
+      }
+    }),
+  }
+}))
+const plantingOverviewCropPlanCount = computed(() => (
+  plantingOverview.value.reduce((sum, area) => sum + area.cropPlans.length, 0)
+))
 </script>
 
 <style scoped>
