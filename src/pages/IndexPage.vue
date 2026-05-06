@@ -39,10 +39,47 @@
 
         <GardenCanvas />
 
+        <ScheduleSettingsCard
+          :zip-code="scheduleStore.zipCode"
+          :location-name="scheduleStore.locationName"
+          :state-code="scheduleStore.stateCode"
+          :latitude="scheduleStore.latitude"
+          :longitude="scheduleStore.longitude"
+          :zip-lookup-pending="scheduleStore.zipLookupPending"
+          :zip-lookup-error="scheduleStore.zipLookupError"
+          :suggested-frost-dates="scheduleStore.suggestedFrostDates"
+          :frost-suggestion-pending="scheduleStore.frostSuggestionPending"
+          :frost-suggestion-error="scheduleStore.frostSuggestionError"
+          :last-frost-date="scheduleStore.lastFrostDate"
+          :first-frost-date="scheduleStore.firstFrostDate"
+          @update:zip-code="scheduleStore.updateScheduleSettings({ zipCode: $event })"
+          @update:last-frost-date="scheduleStore.updateScheduleSettings({ lastFrostDate: $event })"
+          @update:first-frost-date="scheduleStore.updateScheduleSettings({ firstFrostDate: $event })"
+          @lookup-zip="scheduleStore.lookupZipCode()"
+          @suggest-frost-dates="scheduleStore.suggestFrostDates()"
+          @apply-suggested-frost-dates="scheduleStore.applySuggestedFrostDates()"
+        />
+
         <PlannerTaskList
           :tasks="plannerTasks"
           :completed-count="completedTaskCount"
           @toggle-task="scheduleStore.setTaskDone($event.taskId, $event.done)"
+          @focus-task="focusTaskArea"
+          @mark-transplanted="markTaskTransplanted"
+        />
+
+        <PropagationTrayBoard
+          :demands="trayDemands"
+          :trays="traySummaries"
+          :tray-options="propagationStore.trayOptions"
+          :tray-status-options="TRAY_STATUS_OPTIONS"
+          :assignment-status-options="ASSIGNMENT_STATUS_OPTIONS"
+          @create-tray="propagationStore.createTray($event)"
+          @assign-demand="propagationStore.assignCropPlanToTray($event.cropPlanId, $event.trayId, $event.cellCount)"
+          @quick-assign-new-tray="quickAssignDemandToNewTray"
+          @remove-assignment="propagationStore.removeAssignment($event)"
+          @update-tray-status="propagationStore.updateTrayStatus($event.trayId, $event.status)"
+          @update-assignment-status="propagationStore.updateAssignmentStatus($event.assignmentId, $event.status)"
         />
 
         <GardenDimensionsDialog
@@ -63,13 +100,21 @@
 import { computed, reactive, ref, watch } from 'vue'
 import GardenCanvas from 'src/components/garden/GardenCanvas.vue'
 import GardenDimensionsDialog from 'src/components/garden/GardenDimensionsDialog.vue'
+import PropagationTrayBoard from 'src/components/garden/PropagationTrayBoard.vue'
 import PlannerTaskList from 'src/components/garden/PlannerTaskList.vue'
+import ScheduleSettingsCard from 'src/components/garden/ScheduleSettingsCard.vue'
 import GardenSetupForm from 'src/components/garden/GardenSetupForm.vue'
 import GardenToolbar from 'src/components/garden/GardenToolbar.vue'
 import { useGardenStore } from 'src/stores/garden-store'
+import {
+  ASSIGNMENT_STATUS_OPTIONS,
+  TRAY_STATUS_OPTIONS,
+  usePropagationStore,
+} from 'src/stores/propagation-store'
 import { useScheduleStore } from 'src/stores/schedule-store'
 
 const gardenStore = useGardenStore()
+const propagationStore = usePropagationStore()
 const scheduleStore = useScheduleStore()
 const isGardenDimensionsOpen = ref(false)
 
@@ -113,6 +158,28 @@ function startOver() {
   gardenStore.resetGarden()
 }
 
+function focusTaskArea(task) {
+  if (!task?.areaId) {
+    return
+  }
+
+  gardenStore.setSelectedBed(task.areaId)
+}
+
+function quickAssignDemandToNewTray(demand) {
+  const tray = propagationStore.createTray(72)
+  propagationStore.assignCropPlanToTray(demand.cropPlanId, tray.id, demand.remainingCells)
+}
+
+function markTaskTransplanted(task) {
+  if (!task?.cropPlanId) {
+    return
+  }
+
+  propagationStore.markReadyAssignmentsTransplanted(task.cropPlanId)
+  scheduleStore.setTaskDone(task.id, true)
+}
+
 const plannerTasks = computed(() => scheduleStore.plantingTasks.map((task) => ({
   ...task,
   taskTypeLabel: task.taskType === 'start_indoors'
@@ -120,9 +187,14 @@ const plannerTasks = computed(() => scheduleStore.plantingTasks.map((task) => ({
     : task.taskType === 'transplant'
       ? 'Transplant'
       : 'Direct Sow',
+  dueDateLabel: task.dueDate
+    ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(`${task.dueDate}T00:00:00`))
+    : '',
 })))
 
 const completedTaskCount = computed(() => plannerTasks.value.filter((task) => task.done).length)
+const trayDemands = computed(() => propagationStore.indoorStartDemands)
+const traySummaries = computed(() => propagationStore.traySummaries)
 </script>
 
 <style scoped>

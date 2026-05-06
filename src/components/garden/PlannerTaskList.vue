@@ -30,11 +30,33 @@
             {{ task.title }}
           </q-item-label>
           <q-item-label caption>
-            {{ task.taskTypeLabel }} · {{ task.areaName }}
+            {{ task.taskTypeLabel }} · {{ task.areaName }} · {{ task.placedCount }}/{{ task.targetQuantity }} placed
+            <span v-if="task.dueDateLabel"> · Due {{ task.dueDateLabel }}</span>
+          </q-item-label>
+          <q-item-label v-if="task.progressText" caption class="task-item__progress">
+            {{ task.progressText }}
           </q-item-label>
           <q-item-label v-if="task.notes" caption class="task-item__notes">
             {{ task.notes }}
           </q-item-label>
+        </q-item-section>
+
+        <q-item-section side top>
+          <div class="task-item__actions">
+            <q-btn
+              v-if="task.canMarkTransplanted"
+              flat
+              dense
+              icon="task_alt"
+              @click="$emit('mark-transplanted', task)"
+            >
+              <q-tooltip>Mark ready tray cells transplanted</q-tooltip>
+            </q-btn>
+
+            <q-btn flat dense icon="my_location" @click="$emit('focus-task', task)">
+              <q-tooltip>Focus area</q-tooltip>
+            </q-btn>
+          </div>
         </q-item-section>
       </q-item>
     </q-list>
@@ -57,7 +79,7 @@ defineProps({
   },
 })
 
-defineEmits(['toggle-task'])
+defineEmits(['toggle-task', 'focus-task', 'mark-transplanted'])
 </script>
 
 <style scoped>
@@ -72,5 +94,16 @@ defineEmits(['toggle-task'])
 
 .task-item__notes {
   margin-top: 2px;
+}
+
+.task-item__progress {
+  margin-top: 2px;
+  color: #607259;
+}
+
+.task-item__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 </style>
