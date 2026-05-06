@@ -68,6 +68,11 @@
           @mark-transplanted="markTaskTransplanted"
         />
 
+        <PlantingCalendarCard
+          :tasks="plannerTasks"
+          @focus-task="focusTaskArea"
+        />
+
         <PropagationTrayBoard
           :demands="trayDemands"
           :trays="traySummaries"
@@ -102,6 +107,7 @@ import GardenCanvas from 'src/components/garden/GardenCanvas.vue'
 import GardenDimensionsDialog from 'src/components/garden/GardenDimensionsDialog.vue'
 import PropagationTrayBoard from 'src/components/garden/PropagationTrayBoard.vue'
 import PlannerTaskList from 'src/components/garden/PlannerTaskList.vue'
+import PlantingCalendarCard from 'src/components/garden/PlantingCalendarCard.vue'
 import ScheduleSettingsCard from 'src/components/garden/ScheduleSettingsCard.vue'
 import GardenSetupForm from 'src/components/garden/GardenSetupForm.vue'
 import GardenToolbar from 'src/components/garden/GardenToolbar.vue'

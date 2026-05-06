@@ -306,6 +306,10 @@ export const useScheduleStore = defineStore('schedule', {
         return
       }
 
+      if (Boolean(this.taskStatusById[taskId]) === Boolean(done)) {
+        return
+      }
+
       this.taskStatusById = {
         ...this.taskStatusById,
         [taskId]: Boolean(done),
@@ -402,9 +406,21 @@ export const useScheduleStore = defineStore('schedule', {
 
     pruneTaskStatus(validTaskIds) {
       const validIds = new Set(validTaskIds)
-      this.taskStatusById = Object.fromEntries(
+      const nextTaskStatusById = Object.fromEntries(
         Object.entries(this.taskStatusById).filter(([taskId]) => validIds.has(taskId)),
       )
+
+      const currentKeys = Object.keys(this.taskStatusById)
+      const nextKeys = Object.keys(nextTaskStatusById)
+
+      if (
+        currentKeys.length === nextKeys.length
+        && currentKeys.every((taskId) => this.taskStatusById[taskId] === nextTaskStatusById[taskId])
+      ) {
+        return
+      }
+
+      this.taskStatusById = nextTaskStatusById
     },
   },
 })

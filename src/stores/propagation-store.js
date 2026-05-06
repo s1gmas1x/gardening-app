@@ -266,7 +266,16 @@ export const usePropagationStore = defineStore('propagation', {
 
     pruneAssignments(validCropPlanIds) {
       const validIds = new Set(validCropPlanIds)
-      this.trayAssignments = this.trayAssignments.filter((assignment) => validIds.has(assignment.cropPlanId))
+      const nextTrayAssignments = this.trayAssignments.filter((assignment) => validIds.has(assignment.cropPlanId))
+
+      if (
+        nextTrayAssignments.length === this.trayAssignments.length
+        && nextTrayAssignments.every((assignment, index) => assignment.id === this.trayAssignments[index]?.id)
+      ) {
+        return
+      }
+
+      this.trayAssignments = nextTrayAssignments
     },
   },
 })
