@@ -1,5 +1,28 @@
 import { createWeatherProvider } from '../provider'
 
+function isHtmlResponse(contentType = '', text = '') {
+  return contentType.includes('text/html') || /^\s*<!doctype html/i.test(text) || /^\s*<html/i.test(text)
+}
+
+function buildWeatherErrorMessage({ status, contentType = '', errorPayload = {}, rawText = '' }) {
+  const payloadMessage = typeof errorPayload.error === 'string' ? errorPayload.error.trim() : ''
+  const looksLikeHtml = isHtmlResponse(contentType, payloadMessage || rawText)
+
+  if (status === 502 && looksLikeHtml) {
+    return 'Weather service is temporarily unavailable. Please try again in a few minutes.'
+  }
+
+  if (status >= 500) {
+    return payloadMessage || 'Weather service is temporarily unavailable. Please try again shortly.'
+  }
+
+  if (payloadMessage && !looksLikeHtml) {
+    return payloadMessage
+  }
+
+  return 'Unable to load weather data right now.'
+}
+
 function buildQuery(input = {}) {
   const params = new URLSearchParams()
 
@@ -36,27 +59,42 @@ export const netlifyWeatherProvider = createWeatherProvider({
     const contentType = response.headers.get('content-type') || ''
 
     if (!response.ok) {
+      const rawText = contentType.includes('application/json')
+        ? ''
+        : await response.text().catch(() => '')
       const errorPayload = contentType.includes('application/json')
         ? await response.json().catch(() => ({}))
-        : { error: await response.text().catch(() => '') }
+        : { error: rawText }
+      const errorMessage = buildWeatherErrorMessage({
+        status: response.status,
+        contentType,
+        errorPayload,
+        rawText,
+      })
+
       console.error('[weather-debug] client-response-error', {
         status: response.status,
         contentType,
         errorPayload,
+        sanitizedMessage: errorMessage,
       })
-      throw new Error(errorPayload.error || 'Weather lookup failed.')
+      throw new Error(errorMessage)
     }
 
     if (!contentType.includes('application/json')) {
       const rawText = await response.text().catch(() => '')
+      const errorMessage = buildWeatherErrorMessage({
+        status: response.status,
+        contentType,
+        rawText,
+      })
       console.error('[weather-debug] client-response-non-json', {
         status: response.status,
         contentType,
         rawTextPreview: rawText.slice(0, 240),
+        sanitizedMessage: errorMessage,
       })
-      throw new Error(
-        'Weather function returned HTML instead of JSON. Run the app through Netlify functions locally, such as `netlify dev`, or test on the deployed site.',
-      )
+      throw new Error(errorMessage)
     }
 
     const payload = await response.json()

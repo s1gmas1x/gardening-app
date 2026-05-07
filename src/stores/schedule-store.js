@@ -772,7 +772,9 @@ export const useScheduleStore = defineStore('schedule', {
           latitude: this.latitude,
           longitude: this.longitude,
         })
-        this.weatherError = 'Unable to load weather data right now.'
+        this.weatherError = typeof error?.message === 'string' && error.message.trim()
+          ? error.message.trim()
+          : 'Unable to load weather data right now.'
         return false
       } finally {
         this.weatherPending = false
