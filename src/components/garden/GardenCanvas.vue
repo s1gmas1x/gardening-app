@@ -317,6 +317,7 @@ import {
   buildGridLines,
   clamp,
   feetToPixels,
+  GRID_PADDING,
   getAreaPlantingPoints,
   getBedFootprint,
   getBedTypeMeta,
@@ -550,6 +551,40 @@ const transform = computed(() => {
   const { panX, panY, zoom } = viewport.value
   return `translate(${panX} ${panY}) scale(${zoom})`
 })
+
+function resetViewportToVisibleArea() {
+  gardenStore.viewport = {
+    zoom: 1,
+    panX: GRID_PADDING,
+    panY: GRID_PADDING,
+  }
+}
+
+function ensureViewportVisible() {
+  const width = viewportSize.width
+  const height = viewportSize.height
+
+  if (!width || !height) {
+    return
+  }
+
+  const { panX, panY, zoom } = viewport.value
+  const left = panX
+  const top = panY
+  const right = panX + (grid.value.widthPixels * zoom)
+  const bottom = panY + (grid.value.heightPixels * zoom)
+  const margin = 48
+  const isCompletelyOffscreen = (
+    right < margin
+    || bottom < margin
+    || left > width - margin
+    || top > height - margin
+  )
+
+  if (isCompletelyOffscreen) {
+    resetViewportToVisibleArea()
+  }
+}
 const selectedBedMenuStyle = computed(() => {
   if (!selectedBed.value) {
     return {}
@@ -1329,12 +1364,28 @@ function updateViewportSize() {
 
 onMounted(() => {
   updateViewportSize()
+  ensureViewportVisible()
   window.addEventListener('resize', updateViewportSize)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateViewportSize)
 })
+
+watch(
+  () => [
+    viewportSize.width,
+    viewportSize.height,
+    viewport.value.panX,
+    viewport.value.panY,
+    viewport.value.zoom,
+    grid.value.widthPixels,
+    grid.value.heightPixels,
+  ],
+  () => {
+    ensureViewportVisible()
+  },
+)
 
 function getViewportPoint(event) {
   const element = viewportRef.value
