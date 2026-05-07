@@ -47,6 +47,10 @@ function toNumber(value) {
   return Number.isFinite(Number(value)) ? Number(value) : null
 }
 
+function normalizeUnixMsDateTime(value) {
+  return Number.isFinite(Number(value)) ? new Date(Number(value)).toISOString() : ''
+}
+
 function pickWeatherSummary(weather = []) {
   const current = Array.isArray(weather) ? weather[0] : null
 
@@ -169,6 +173,84 @@ async function fetchJson(url) {
   return response.json()
 }
 
+const nwsWarningLayerUrls = [
+  'https://services9.arcgis.com/RHVPKKiFTONKtxq3/arcgis/rest/services/NWS_Watches_Warnings_v1/FeatureServer/8',
+  'https://services9.arcgis.com/RHVPKKiFTONKtxq3/arcgis/rest/services/NWS_Watches_Warnings_v1/FeatureServer/9',
+  'https://services9.arcgis.com/RHVPKKiFTONKtxq3/arcgis/rest/services/NWS_Watches_Warnings_v1/FeatureServer/10',
+]
+
+function normalizeNwsAlert(feature = {}, index = 0) {
+  const attributes = feature?.attributes ?? {}
+
+  return {
+    id: normalizeText(attributes.Uid) || `nws-alert-${index}`,
+    source: 'NWS via Esri',
+    event: normalizeText(attributes.Event),
+    headline: normalizeText(attributes.Summary),
+    severity: normalizeText(attributes.Severity),
+    startsAt: normalizeUnixMsDateTime(attributes.Start),
+    endsAt: normalizeUnixMsDateTime(attributes.End_),
+    description: normalizeText(attributes.Description),
+    instruction: normalizeText(attributes.Instruction),
+    areas: normalizeText(attributes.Affected)
+      .split(';')
+      .map((item) => item.trim())
+      .filter(Boolean),
+  }
+}
+
+async function fetchNwsAlerts(latitude, longitude) {
+  const geometry = `${longitude},${latitude}`
+  const outFields = [
+    'Event',
+    'Severity',
+    'Summary',
+    'Start',
+    'End_',
+    'Uid',
+    'Affected',
+    'Description',
+    'Instruction',
+  ].join(',')
+
+  const layerResponses = await Promise.all(
+    nwsWarningLayerUrls.map(async (baseUrl) => {
+      const url = `${baseUrl}/query?where=1%3D1&geometry=${encodeURIComponent(geometry)}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=${encodeURIComponent(outFields)}&returnGeometry=false&f=json`
+      const payload = await fetchJson(url)
+
+      return Array.isArray(payload.features) ? payload.features : []
+    }),
+  )
+
+  return layerResponses
+    .flat()
+    .map(normalizeNwsAlert)
+    .filter((alert) => alert.event || alert.headline)
+}
+
+function buildAlertsOnlyPayload({
+  zipCode,
+  latitude,
+  longitude,
+  locationName,
+  stateCode,
+  activeAlerts,
+}) {
+  return {
+    source: 'nws-alerts-only',
+    zipCode,
+    latitude,
+    longitude,
+    locationName,
+    stateCode,
+    lastUpdatedAt: new Date().toISOString(),
+    currentConditions: null,
+    dailyForecast: [],
+    hourlyForecast: [],
+    activeAlerts,
+  }
+}
+
 export async function handler(event) {
   const apiKey = process.env.OPENWEATHER_API_KEY
 
@@ -288,6 +370,34 @@ export async function handler(event) {
       status: error.status ?? null,
       responseText: error.responseText ?? '',
     })
+
+    try {
+      const activeAlerts = await fetchNwsAlerts(latitude, longitude)
+
+      logWeatherDebug('nws-alert-fetch-success', {
+        latitude,
+        longitude,
+        alertCount: activeAlerts.length,
+      })
+
+      if (activeAlerts.length > 0) {
+        return json(200, buildAlertsOnlyPayload({
+          zipCode,
+          latitude,
+          longitude,
+          locationName,
+          stateCode,
+          activeAlerts,
+        }))
+      }
+    } catch (alertsError) {
+      logWeatherDebug('nws-alert-fetch-error', {
+        message: alertsError.message,
+        status: alertsError.status ?? null,
+        responseText: alertsError.responseText ?? '',
+      })
+    }
+
     return json(502, {
       error: 'Unable to load weather data right now.',
       debug: buildSafeErrorDebug('weather-fetch-error', error, {
