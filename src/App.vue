@@ -36,9 +36,9 @@ watch(
 )
 
 watch(
-  () => planningStore.cropPlans.map((cropPlan) => cropPlan.id),
-  (cropPlanIds) => {
-    propagationStore.pruneAssignments(cropPlanIds)
+  () => scheduleStore.plantingBatches.map((batch) => batch.id),
+  (batchIds) => {
+    propagationStore.pruneAssignments(batchIds)
   },
   { immediate: true },
 )

@@ -30,11 +30,14 @@
             {{ task.title }}
           </q-item-label>
           <q-item-label caption>
-            {{ task.taskTypeLabel }} · {{ task.areaName }} · {{ task.placedCount }}/{{ task.targetQuantity }} placed
+            {{ task.taskTypeLabel }} · {{ task.areaName }} · {{ task.inGardenCount ?? task.placedCount }}/{{ task.targetQuantity }} in garden
             <span v-if="task.dueDateLabel"> · Due {{ task.dueDateLabel }}</span>
           </q-item-label>
           <q-item-label v-if="task.progressText" caption class="task-item__progress">
             {{ task.progressText }}
+          </q-item-label>
+          <q-item-label v-if="task.batchTimingLabel" caption class="task-item__progress">
+            {{ task.batchTimingLabel }}
           </q-item-label>
           <q-item-label v-if="task.notes" caption class="task-item__notes">
             {{ task.notes }}

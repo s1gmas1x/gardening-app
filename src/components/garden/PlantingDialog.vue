@@ -20,6 +20,16 @@
 
       <q-card-section class="planting-dialog__body">
         <div class="planting-dialog__controls">
+          <div v-if="workspaceMode === 'current' && guidedTransplantRequest" class="planting-dialog__guide">
+            <div class="planting-dialog__guide-title">Guided Transplant Placement</div>
+            <div class="text-caption text-grey-7">
+              Place the actual transplanted plants in Current Garden, then confirm the tray assignment.
+            </div>
+            <div class="text-caption text-grey-7">
+              {{ guidedTransplantPlacedCount }}/{{ guidedTransplantRequest.quantity }} placed in this guided run
+            </div>
+          </div>
+
           <q-select
             :model-value="selectedPlantId"
             :options="plantOptions"
@@ -122,6 +132,14 @@
               :disable="selectedCropPlanRemainingCount <= 0"
               @click="$emit('place-planned')"
             />
+            <q-btn
+              v-if="workspaceMode === 'current' && guidedTransplantRequest"
+              color="secondary"
+              unelevated
+              label="Use Suggested Positions"
+              :disable="!guidedSuggestedPlantings.length"
+              @click="$emit('place-guided-suggested')"
+            />
             <q-btn color="positive" unelevated label="Fill All" @click="$emit('fill-all')" />
             <q-btn flat label="Clear Area" @click="$emit('clear-area')" />
           </div>
@@ -172,6 +190,16 @@
               <span class="planting-dialog__plan-meta">{{ cropPlan.targetQuantity }} planned</span>
               <span class="planting-dialog__plan-method">{{ cropPlan.methodLabel }}</span>
             </div>
+          </div>
+
+          <div v-if="workspaceMode === 'current' && guidedTransplantRequest" class="planting-dialog__actions">
+            <q-btn
+              color="positive"
+              unelevated
+              label="Finish Guided Transplant"
+              :disable="guidedTransplantPlacedCount <= 0"
+              @click="$emit('finish-guided-transplant')"
+            />
           </div>
         </div>
 
@@ -227,6 +255,25 @@
                 :cy="feetToPixels(hoveredPlantingPoint.yFeet)"
                 :r="9"
               />
+
+              <circle
+                v-for="planting in guidedSuggestedPlantings"
+                :key="`${planting.id}-blueprint`"
+                class="planting-preview__blueprint"
+                :cx="feetToPixels(planting.xFeet)"
+                :cy="feetToPixels(planting.yFeet)"
+                :r="9"
+              />
+
+              <text
+                v-for="planting in guidedSuggestedPlantings"
+                :key="`${planting.id}-blueprint-label`"
+                class="planting-preview__blueprint-label"
+                :x="feetToPixels(planting.xFeet)"
+                :y="feetToPixels(planting.yFeet) + 3"
+              >
+                {{ getPlantShortLabel(planting.plantId) }}
+              </text>
 
               <circle
                 v-for="planting in previewPlantings"
@@ -375,6 +422,22 @@ defineProps({
     type: Array,
     required: true,
   },
+  workspaceMode: {
+    type: String,
+    required: true,
+  },
+  guidedTransplantRequest: {
+    type: Object,
+    default: null,
+  },
+  guidedTransplantPlacedCount: {
+    type: Number,
+    required: true,
+  },
+  guidedSuggestedPlantings: {
+    type: Array,
+    required: true,
+  },
   plantingPreviewLayout: {
     type: Object,
     required: true,
@@ -456,9 +519,11 @@ defineEmits([
   'update:selectedCropPlanTargetQuantity',
   'update:selectedCropPlanNotes',
   'place-planned',
+  'place-guided-suggested',
   'update:plantingLayoutMode',
   'update:plantingMode',
   'update:freePlacementSnap',
+  'finish-guided-transplant',
   'fill-all',
   'clear-area',
   'delete-selected-plant',
@@ -499,6 +564,22 @@ defineEmits([
 .planting-dialog__actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.planting-dialog__guide {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #eef6eb;
+  border: 1px solid #d5e5cf;
+}
+
+.planting-dialog__guide-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #2f412b;
 }
 
 .planting-dialog__legend {
@@ -654,6 +735,21 @@ defineEmits([
 
 .planting-preview__label {
   fill: #24341f;
+  font-size: 9px;
+  font-weight: 700;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.planting-preview__blueprint {
+  fill: rgba(88, 148, 255, 0.14);
+  stroke: rgba(88, 148, 255, 0.95);
+  stroke-width: 2;
+  stroke-dasharray: 4 3;
+}
+
+.planting-preview__blueprint-label {
+  fill: rgba(51, 102, 204, 0.92);
   font-size: 9px;
   font-weight: 700;
   text-anchor: middle;

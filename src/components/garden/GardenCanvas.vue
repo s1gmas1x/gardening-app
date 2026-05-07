@@ -3,11 +3,13 @@
     ref="viewportRef"
     class="planner-viewport"
     :class="{ 'planner-viewport--panning': interactionMode === 'pan' }"
+    :style="{ touchAction: viewportTouchAction }"
     @wheel.prevent="handleWheel"
     @pointerdown="handleViewportPointerDown"
     @pointermove="handlePointerMove"
     @pointerup="handlePointerUp"
     @pointerleave="handlePointerUp"
+    @pointercancel="handlePointerUp"
   >
     <svg class="planner-svg">
       <g :transform="transform">
@@ -252,6 +254,10 @@
       :free-placement-boundary-count="freePlacementBoundaryCount"
       :planting-summary="selectedBed ? getPlantingSummary(selectedBed) : []"
       :crop-plans="selectedBedCropPlans"
+      :workspace-mode="props.workspaceMode"
+      :guided-transplant-request="props.guidedTransplantRequest"
+      :guided-transplant-placed-count="guidedTransplantPlacedCount"
+      :guided-suggested-plantings="guidedSuggestedPlantings"
       :planting-preview-layout="plantingPreviewLayout"
       :planting-points="plantingPoints"
       :hovered-planting-point="hoveredPlantingPoint"
@@ -280,6 +286,8 @@
       @update:plantingMode="plantingMode = $event"
       @update:freePlacementSnap="freePlacementSnap = $event"
       @fill-all="fillAllPlantingPoints"
+      @place-guided-suggested="placeGuidedSuggestedPlantings"
+      @finish-guided-transplant="finishGuidedTransplant"
       @clear-area="clearSelectedPlantings"
       @delete-selected-plant="deleteSelectedPreviewPlanting"
       @preview-pointerdown="handlePlantingPreviewPointerDown"
@@ -296,7 +304,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import BedEditorCard from 'src/components/garden/BedEditorCard.vue'
 import PlantingDialog from 'src/components/garden/PlantingDialog.vue'
@@ -314,11 +322,29 @@ import {
   getBedTypeMeta,
   isPointInsideArea,
   normalizeBedRotation,
+  zoomAroundPoint,
   snapToIncrement,
   spacingInchesToFeet,
   summarizePlantings,
   pixelsToFeet,
 } from 'src/utils/garden'
+
+const props = defineProps({
+  plantingRequest: {
+    type: Object,
+    default: null,
+  },
+  guidedTransplantRequest: {
+    type: Object,
+    default: null,
+  },
+  workspaceMode: {
+    type: String,
+    default: 'plan',
+  },
+})
+
+const emit = defineEmits(['finish-guided-transplant', 'cancel-guided-transplant'])
 
 const gardenStore = useGardenStore()
 const plantStore = usePlantStore()
@@ -347,6 +373,16 @@ const pointerState = reactive({
   startBedXFeet: 0,
   startBedYFeet: 0,
 })
+const touchPoints = reactive({})
+const touchGestureState = reactive({
+  mode: null,
+  initialDistance: 0,
+  initialZoom: 0,
+  initialPanX: 0,
+  initialPanY: 0,
+  initialCenterX: 0,
+  initialCenterY: 0,
+})
 const previewDragState = reactive({
   active: false,
   startX: 0,
@@ -373,8 +409,10 @@ const freeDragState = reactive({
   xFeet: 0,
   yFeet: 0,
 })
+const suppressGuidedTransplantCancel = ref(false)
 
 const showMinorGrid = computed(() => viewport.value.zoom >= 3)
+const viewportTouchAction = computed(() => (interactionMode.value === 'pan' ? 'none' : 'pan-y'))
 const supportsSelectedBedHeight = computed(() => bedSupportsHeight(selectedBed.value?.type))
 const selectedPlant = computed(() => plantStore.getPlantById(selectedPlantId.value))
 const selectedBedCropPlans = computed(() => {
@@ -425,6 +463,12 @@ const selectedPlantRemainingCount = computed(() => {
 
   return Math.max((selectedPlantCropPlan.value.targetQuantity ?? 0) - selectedPlantPlacedCount.value, 0)
 })
+const isGuidedTransplantActive = computed(() => (
+  props.workspaceMode === 'current'
+  && Boolean(props.guidedTransplantRequest?.batchId)
+  && props.guidedTransplantRequest?.areaId === selectedBed.value?.id
+  && props.guidedTransplantRequest?.plantId === selectedPlantId.value
+))
 const grid = computed(() => buildGridLines(
   gardenDimensions.value.widthFeet,
   gardenDimensions.value.lengthFeet,
@@ -447,6 +491,26 @@ const previewPlantings = computed(() => {
       ? { ...planting, xFeet: freeDragState.xFeet, yFeet: freeDragState.yFeet }
       : planting
   ))
+})
+const guidedSuggestedPlantings = computed(() => {
+  if (!isGuidedTransplantActive.value || !selectedBed.value) {
+    return []
+  }
+
+  const currentPointKeys = new Set(getBedPlantings(selectedBed.value).map((planting) => getPointKey(planting)))
+  return getPlannedBedPlantings(selectedBed.value)
+    .filter((planting) => planting.plantId === selectedPlantId.value)
+    .filter((planting) => !currentPointKeys.has(getPointKey(planting)))
+})
+const guidedTransplantPlacedCount = computed(() => {
+  if (!isGuidedTransplantActive.value || !selectedBed.value) {
+    return 0
+  }
+
+  const currentPlantCount = getBedPlantings(selectedBed.value)
+    .filter((planting) => planting.plantId === selectedPlantId.value)
+    .length
+  return Math.max(0, currentPlantCount - (props.guidedTransplantRequest?.initialCurrentCount ?? 0))
 })
 const selectedPreviewPlanting = computed(() => (
   previewPlantings.value.find((planting) => planting.id === selectedPreviewPlantingId.value) ?? null
@@ -530,11 +594,65 @@ watch(defaultPlantId, (nextDefaultPlantId) => {
   }
 })
 
+watch(
+  () => props.plantingRequest?.key,
+  async () => {
+    if (!props.plantingRequest?.areaId || props.plantingRequest?.workspaceMode !== props.workspaceMode) {
+      return
+    }
+
+    await nextTick()
+
+    if (selectedBed.value?.id !== props.plantingRequest.areaId) {
+      return
+    }
+
+    if (props.plantingRequest.plantId && plantStore.getPlantById(props.plantingRequest.plantId)) {
+      selectedPlantId.value = props.plantingRequest.plantId
+    }
+
+    openPlantingDialog()
+  },
+)
+
+watch(
+  () => props.guidedTransplantRequest?.key,
+  async () => {
+    if (!props.guidedTransplantRequest?.areaId || props.workspaceMode !== 'current') {
+      return
+    }
+
+    await nextTick()
+    gardenStore.setSelectedBed(props.guidedTransplantRequest.areaId)
+    await nextTick()
+
+    if (selectedBed.value?.id !== props.guidedTransplantRequest.areaId) {
+      return
+    }
+
+    if (plantStore.getPlantById(props.guidedTransplantRequest.plantId)) {
+      selectedPlantId.value = props.guidedTransplantRequest.plantId
+    }
+
+    openPlantingDialog()
+  },
+)
+
 function getBedGrid(bed) {
   return buildBedGridLines(bed.widthFeet, bed.heightFeet, showMinorGrid.value)
 }
 
 function getBedPlantings(bed) {
+  if (!bed?.id) {
+    return []
+  }
+
+  return props.workspaceMode === 'current'
+    ? planningStore.getCurrentPlantingsByAreaId(bed.id)
+    : planningStore.getPlantingsByAreaId(bed.id)
+}
+
+function getPlannedBedPlantings(bed) {
   return bed?.id ? planningStore.getPlantingsByAreaId(bed.id) : []
 }
 
@@ -718,11 +836,17 @@ function openPlantingDialog() {
 }
 
 function closePlantingDialog() {
+  const shouldCancelGuidedTransplant = isGuidedTransplantActive.value && !suppressGuidedTransplantCancel.value
   isPlantingDialogOpen.value = false
   resetPreviewDrag()
   resetFreeDrag()
   hoveredPlantingPoint.value = null
   selectedPreviewPlantingId.value = null
+  suppressGuidedTransplantCancel.value = false
+
+  if (shouldCancelGuidedTransplant) {
+    emit('cancel-guided-transplant')
+  }
 }
 
 function getPointKey(point) {
@@ -756,6 +880,11 @@ function buildPlanting(point, plantId) {
 
 function setSelectedBedPlantings(nextPlantings) {
   if (!selectedBed.value) {
+    return
+  }
+
+  if (props.workspaceMode === 'current') {
+    planningStore.setCurrentAreaPlantings(selectedBed.value.id, nextPlantings)
     return
   }
 
@@ -818,8 +947,50 @@ function fillAllPlantingPoints() {
   applyPlantToPoints(plantingPoints.value)
 }
 
+function placeGuidedSuggestedPlantings() {
+  if (!isGuidedTransplantActive.value || !selectedBed.value || !selectedPlantId.value) {
+    return
+  }
+
+  const quantity = Math.max(0, Math.round(Number(props.guidedTransplantRequest?.quantity) || 0))
+  if (!quantity) {
+    return
+  }
+
+  const currentPlantings = getBedPlantings(selectedBed.value)
+  const currentPointKeys = new Set(currentPlantings.map((planting) => getPointKey(planting)))
+  const pointsToPlace = guidedSuggestedPlantings.value
+    .filter((planting) => !currentPointKeys.has(getPointKey(planting)))
+    .slice(0, quantity)
+    .map((planting) => ({ xFeet: planting.xFeet, yFeet: planting.yFeet }))
+
+  if (!pointsToPlace.length) {
+    return
+  }
+
+  setSelectedBedPlantings([
+    ...currentPlantings,
+    ...pointsToPlace.map((point) => buildPlanting(point, selectedPlantId.value)),
+  ])
+}
+
 function clearSelectedPlantings() {
   setSelectedBedPlantings([])
+}
+
+function finishGuidedTransplant() {
+  if (!isGuidedTransplantActive.value || !props.guidedTransplantRequest?.assignmentId || guidedTransplantPlacedCount.value <= 0) {
+    return
+  }
+
+  suppressGuidedTransplantCancel.value = true
+  emit('finish-guided-transplant', {
+    assignmentId: props.guidedTransplantRequest.assignmentId,
+    batchId: props.guidedTransplantRequest.batchId,
+    cropPlanId: props.guidedTransplantRequest.cropPlanId,
+    placedCount: guidedTransplantPlacedCount.value,
+  })
+  closePlantingDialog()
 }
 
 function getPreviewSvgPoint(event) {
@@ -1175,6 +1346,121 @@ function getViewportPoint(event) {
   }
 }
 
+function getActiveTouchPoints() {
+  return Object.values(touchPoints)
+}
+
+function syncTouchPoint(event) {
+  touchPoints[event.pointerId] = {
+    pointerId: event.pointerId,
+    clientX: event.clientX,
+    clientY: event.clientY,
+  }
+}
+
+function removeTouchPoint(pointerId) {
+  delete touchPoints[pointerId]
+}
+
+function getTouchCenter(points) {
+  if (points.length < 2) {
+    return { x: 0, y: 0 }
+  }
+
+  return {
+    x: (points[0].clientX + points[1].clientX) / 2,
+    y: (points[0].clientY + points[1].clientY) / 2,
+  }
+}
+
+function getTouchDistance(points) {
+  if (points.length < 2) {
+    return 0
+  }
+
+  const deltaX = points[0].clientX - points[1].clientX
+  const deltaY = points[0].clientY - points[1].clientY
+  return Math.hypot(deltaX, deltaY)
+}
+
+function releasePointerCapture(pointerId) {
+  if (pointerId !== null && viewportRef.value?.hasPointerCapture(pointerId)) {
+    viewportRef.value.releasePointerCapture(pointerId)
+  }
+}
+
+function resetPointerState() {
+  pointerState.mode = null
+  pointerState.pointerId = null
+  pointerState.bedId = null
+}
+
+function beginPinchGesture() {
+  const points = getActiveTouchPoints()
+
+  if (points.length < 2) {
+    return
+  }
+
+  releasePointerCapture(pointerState.pointerId)
+  resetPointerState()
+
+  const center = getTouchCenter(points)
+  touchGestureState.mode = 'pinch'
+  touchGestureState.initialDistance = Math.max(getTouchDistance(points), 1)
+  touchGestureState.initialZoom = viewport.value.zoom
+  touchGestureState.initialPanX = viewport.value.panX
+  touchGestureState.initialPanY = viewport.value.panY
+  touchGestureState.initialCenterX = center.x
+  touchGestureState.initialCenterY = center.y
+
+  points.forEach((point) => {
+    viewportRef.value?.setPointerCapture(point.pointerId)
+  })
+}
+
+function updatePinchGesture() {
+  const points = getActiveTouchPoints()
+
+  if (touchGestureState.mode !== 'pinch' || points.length < 2) {
+    return
+  }
+
+  const nextZoom = touchGestureState.initialZoom * (
+    getTouchDistance(points) / Math.max(touchGestureState.initialDistance, 1)
+  )
+  const zoomCenter = {
+    x: touchGestureState.initialCenterX,
+    y: touchGestureState.initialCenterY,
+  }
+  const nextViewport = zoomAroundPoint(
+    {
+      zoom: touchGestureState.initialZoom,
+      panX: touchGestureState.initialPanX,
+      panY: touchGestureState.initialPanY,
+    },
+    nextZoom,
+    zoomCenter,
+  )
+  const currentCenter = getTouchCenter(points)
+
+  gardenStore.viewport = {
+    ...nextViewport,
+    panX: nextViewport.panX + currentCenter.x - touchGestureState.initialCenterX,
+    panY: nextViewport.panY + currentCenter.y - touchGestureState.initialCenterY,
+  }
+}
+
+function resetTouchGestureState() {
+  touchGestureState.mode = null
+  touchGestureState.initialDistance = 0
+  touchGestureState.initialZoom = 0
+  touchGestureState.initialPanX = 0
+  touchGestureState.initialPanY = 0
+  touchGestureState.initialCenterX = 0
+  touchGestureState.initialCenterY = 0
+}
+
 function handleWheel(event) {
   const point = getViewportPoint(event)
   const delta = event.deltaY > 0 ? -0.25 : 0.25
@@ -1182,8 +1468,19 @@ function handleWheel(event) {
 }
 
 function handleViewportPointerDown(event) {
+  if (event.pointerType === 'touch') {
+    syncTouchPoint(event)
+
+    if (getActiveTouchPoints().length >= 2) {
+      beginPinchGesture()
+      return
+    }
+  }
+
   if (interactionMode.value !== 'pan') {
-    gardenStore.clearSelection()
+    if (event.pointerType !== 'touch') {
+      gardenStore.clearSelection()
+    }
     return
   }
 
@@ -1197,6 +1494,15 @@ function handleViewportPointerDown(event) {
 }
 
 function handleBedPointerDown(event, bedId) {
+  if (event.pointerType === 'touch') {
+    syncTouchPoint(event)
+
+    if (getActiveTouchPoints().length >= 2) {
+      beginPinchGesture()
+      return
+    }
+  }
+
   gardenStore.setSelectedBed(bedId)
 
   if (interactionMode.value !== 'select') {
@@ -1219,6 +1525,15 @@ function handleBedPointerDown(event, bedId) {
 }
 
 function handlePointerMove(event) {
+  if (event.pointerType === 'touch' && touchPoints[event.pointerId]) {
+    syncTouchPoint(event)
+
+    if (touchGestureState.mode === 'pinch') {
+      updatePinchGesture()
+      return
+    }
+  }
+
   if (pointerState.pointerId !== event.pointerId) {
     return
   }
@@ -1243,14 +1558,18 @@ function handlePointerMove(event) {
   }
 }
 
-function handlePointerUp() {
-  if (pointerState.pointerId !== null && viewportRef.value?.hasPointerCapture(pointerState.pointerId)) {
-    viewportRef.value.releasePointerCapture(pointerState.pointerId)
+function handlePointerUp(event) {
+  if (event?.pointerType === 'touch') {
+    releasePointerCapture(event.pointerId)
+    removeTouchPoint(event.pointerId)
+
+    if (touchGestureState.mode === 'pinch' && getActiveTouchPoints().length < 2) {
+      resetTouchGestureState()
+    }
   }
 
-  pointerState.mode = null
-  pointerState.pointerId = null
-  pointerState.bedId = null
+  releasePointerCapture(pointerState.pointerId)
+  resetPointerState()
 }
 </script>
 
@@ -1300,6 +1619,7 @@ function handlePointerUp() {
 
 .bed-group {
   cursor: move;
+  touch-action: none;
 }
 
 .bed-shape {

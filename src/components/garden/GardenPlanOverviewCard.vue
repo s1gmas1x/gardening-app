@@ -36,7 +36,7 @@
 
           <div class="plan-overview-area__actions">
             <div class="plan-overview-area__stats">
-              <span>{{ area.placedCount }}/{{ area.plannedCount }} placed</span>
+              <span>{{ area.placedCount }}/{{ area.plannedCount }} in garden</span>
               <span v-if="area.remainingCount">· {{ area.remainingCount }} remaining</span>
             </div>
             <q-btn flat dense icon="my_location" label="Focus area" @click="$emit('focus-area', area.id)" />
@@ -55,18 +55,39 @@
                 {{ cropPlan.plantName }}
               </div>
               <div class="plan-overview-plan__meta">
-                {{ cropPlan.methodLabel }} · {{ cropPlan.placedCount }}/{{ cropPlan.targetQuantity }} placed
+                {{ cropPlan.methodLabel }} · {{ cropPlan.placedCount }}/{{ cropPlan.targetQuantity }} in garden
               </div>
             </div>
 
-            <div class="plan-overview-plan__remaining">
-              {{ cropPlan.remainingCount }} remaining
+            <div class="plan-overview-plan__actions">
+              <div class="plan-overview-plan__remaining">
+                {{ cropPlan.remainingCount }} remaining
+              </div>
+              <q-btn
+                v-if="cropPlan.remainingCount > 0"
+                flat
+                dense
+                color="positive"
+                icon="eco"
+                label="Place"
+                @click="$emit('plant-crop', { areaId: area.id, plantId: cropPlan.plantId })"
+              />
             </div>
           </div>
         </div>
 
         <div v-else class="plan-overview-area__empty text-caption text-grey-7">
           No crop plans assigned to this area yet.
+        </div>
+
+        <div class="plan-overview-area__footer">
+          <q-btn
+            color="positive"
+            unelevated
+            icon="eco"
+            label="Open Planting"
+            @click="$emit('plant-area', area.id)"
+          />
         </div>
       </section>
     </div>
@@ -89,7 +110,7 @@ defineProps({
   },
 })
 
-defineEmits(['focus-area'])
+defineEmits(['focus-area', 'plant-area', 'plant-crop'])
 </script>
 
 <style scoped>
@@ -183,7 +204,19 @@ defineEmits(['focus-area'])
   color: #6b7e64;
 }
 
+.plan-overview-plan__actions {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+}
+
 .plan-overview-area__empty {
   margin-top: 10px;
+}
+
+.plan-overview-area__footer {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

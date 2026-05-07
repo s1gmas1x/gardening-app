@@ -21,14 +21,20 @@
         <div class="tray-board__label">Indoor Start Demand</div>
 
         <div v-if="demands.length" class="tray-board__list">
-          <div v-for="demand in demands" :key="demand.cropPlanId" class="tray-demand">
+          <div v-for="demand in demands" :key="demand.batchId" class="tray-demand">
             <div class="tray-demand__title">{{ demand.plantName }}</div>
-            <div class="tray-demand__meta">{{ demand.areaName }} · {{ demand.remainingCells }} cells remaining</div>
+            <div class="tray-demand__meta">
+              {{ demand.areaName }} · {{ demand.remainingCells }} cells remaining
+              <span v-if="demand.transplantDate"> · Transplant {{ demand.transplantDate }}</span>
+            </div>
+            <div v-if="demand.recommendedTrayName" class="tray-demand__suggestion">
+              Suggested tray: {{ demand.recommendedTrayName }} · {{ demand.recommendationReason }}
+            </div>
 
             <div class="row q-col-gutter-sm items-end">
               <div class="col">
                 <q-select
-                  v-model="selectedTrayByDemand[demand.cropPlanId]"
+                  v-model="selectedTrayByDemand[demand.batchId]"
                   :options="trayOptions"
                   emit-value
                   map-options
@@ -40,7 +46,7 @@
 
               <div class="col-4">
                 <q-input
-                  v-model.number="cellCountByDemand[demand.cropPlanId]"
+                  v-model.number="cellCountByDemand[demand.batchId]"
                   type="number"
                   min="1"
                   :max="demand.remainingCells"
@@ -56,7 +62,7 @@
                 color="positive"
                 unelevated
                 label="Assign"
-                :disable="!selectedTrayByDemand[demand.cropPlanId]"
+                :disable="!selectedTrayByDemand[demand.batchId]"
                 @click="assignDemand(demand)"
               />
               <q-btn flat label="Assign Remaining to New 72" @click="$emit('quick-assign-new-tray', demand)" />
@@ -94,10 +100,24 @@
               <div v-for="assignment in tray.assignments" :key="assignment.id" class="tray-summary__assignment">
                 <div class="tray-summary__assignment-copy">
                   <div class="tray-summary__assignment-title">{{ assignment.plantName }}</div>
-                  <div class="tray-summary__assignment-meta">{{ assignment.areaName }} · {{ assignment.cellCount }} cells</div>
+                  <div class="tray-summary__assignment-meta">
+                    {{ assignment.areaName }} · {{ assignment.cellCount }} cells
+                    <span v-if="assignment.transplantDate"> · Transplant {{ assignment.transplantDate }}</span>
+                  </div>
                 </div>
 
                 <div class="tray-summary__assignment-actions">
+                  <q-btn
+                    v-if="assignment.status === 'ready_to_transplant'"
+                    flat
+                    dense
+                    color="positive"
+                    icon="edit_location_alt"
+                    @click="$emit('guided-transplant', assignment)"
+                  >
+                    <q-tooltip>Guide transplant placement</q-tooltip>
+                  </q-btn>
+
                   <q-select
                     :model-value="assignment.status"
                     :options="assignmentStatusOptions"
@@ -132,9 +152,9 @@
 </template>
 
 <script setup>
-import { reactive } from 'vue'
+import { reactive, watchEffect } from 'vue'
 
-defineProps({
+const props = defineProps({
   demands: {
     type: Array,
     required: true,
@@ -162,6 +182,7 @@ const emit = defineEmits([
   'assign-demand',
   'quick-assign-new-tray',
   'remove-assignment',
+  'guided-transplant',
   'update-tray-status',
   'update-assignment-status',
 ])
@@ -169,20 +190,28 @@ const emit = defineEmits([
 const selectedTrayByDemand = reactive({})
 const cellCountByDemand = reactive({})
 
+watchEffect(() => {
+  props.demands.forEach((demand) => {
+    if (!selectedTrayByDemand[demand.batchId] && demand.recommendedTrayId) {
+      selectedTrayByDemand[demand.batchId] = demand.recommendedTrayId
+    }
+  })
+})
+
 function assignDemand(demand) {
-  const trayId = selectedTrayByDemand[demand.cropPlanId]
+  const trayId = selectedTrayByDemand[demand.batchId]
   const cellCount = Math.max(1, Math.min(
-    Number(cellCountByDemand[demand.cropPlanId]) || demand.remainingCells,
+    Number(cellCountByDemand[demand.batchId]) || demand.remainingCells,
     demand.remainingCells,
   ))
 
   emit('assign-demand', {
-    cropPlanId: demand.cropPlanId,
+    batchId: demand.batchId,
     trayId,
     cellCount,
   })
 
-  cellCountByDemand[demand.cropPlanId] = Math.max(demand.remainingCells - cellCount, 1)
+  cellCountByDemand[demand.batchId] = Math.max(demand.remainingCells - cellCount, 1)
 }
 </script>
 
@@ -237,6 +266,11 @@ function assignDemand(demand) {
 .tray-summary__assignment-meta {
   font-size: 12px;
   color: #667861;
+}
+
+.tray-demand__suggestion {
+  font-size: 12px;
+  color: #4c6b45;
 }
 
 .tray-summary__assignments {

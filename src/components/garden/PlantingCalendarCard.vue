@@ -43,7 +43,7 @@
             <div class="calendar-task__body">
               <div class="calendar-task__title">{{ task.title }}</div>
               <div class="calendar-task__meta">
-                {{ task.taskTypeLabel }} · {{ task.areaName }} · {{ task.placedCount }}/{{ task.targetQuantity }} placed
+                {{ task.taskTypeLabel }} · {{ task.areaName }} · {{ task.inGardenCount ?? task.placedCount }}/{{ task.targetQuantity }} in garden
               </div>
             </div>
             <q-icon name="my_location" size="16px" class="calendar-task__icon" />

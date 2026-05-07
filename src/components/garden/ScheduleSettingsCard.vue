@@ -4,7 +4,7 @@
       <div class="col">
         <div class="text-subtitle1 text-weight-medium">Schedule Settings</div>
         <div class="text-caption text-grey-7">
-          Zip code is stored for future lookup. Frost dates are used now to generate dated task targets.
+          Zip code is stored for future lookup. USDA zone and average frost dates can be looked up or overridden manually.
         </div>
       </div>
     </q-card-section>
@@ -42,6 +42,48 @@
 
       <div v-if="zipLookupError" class="col-12 text-negative text-caption">
         {{ zipLookupError }}
+      </div>
+    </q-card-section>
+
+    <q-card-section class="row q-col-gutter-sm q-pt-none">
+      <div class="col-12 col-md-4">
+        <q-input
+          :model-value="usdaZone"
+          outlined
+          dense
+          label="USDA Zone"
+          @update:model-value="$emit('update:usdaZone', $event)"
+        />
+      </div>
+
+      <div class="col-12 col-md-4">
+        <q-input
+          :model-value="averageLastFrostDate"
+          type="date"
+          outlined
+          dense
+          label="Average Last Frost"
+          @update:model-value="$emit('update:averageLastFrostDate', $event)"
+        />
+      </div>
+
+      <div class="col-12 col-md-4">
+        <q-input
+          :model-value="averageFirstFrostDate"
+          type="date"
+          outlined
+          dense
+          label="Average First Frost"
+          @update:model-value="$emit('update:averageFirstFrostDate', $event)"
+        />
+      </div>
+
+      <div v-if="growingZoneMeta" class="col-12 text-caption text-grey-7">
+        {{ growingZoneMeta }}
+      </div>
+
+      <div v-if="growingZoneError" class="col-12 text-negative text-caption">
+        {{ growingZoneError }}
       </div>
     </q-card-section>
 
@@ -97,7 +139,7 @@
           type="date"
           outlined
           dense
-          label="Last Frost"
+          label="Planning Last Frost"
           @update:model-value="$emit('update:lastFrostDate', $event)"
         />
       </div>
@@ -108,7 +150,7 @@
           type="date"
           outlined
           dense
-          label="First Frost"
+          label="Planning First Frost"
           @update:model-value="$emit('update:firstFrostDate', $event)"
         />
       </div>
@@ -137,6 +179,26 @@ defineProps({
   longitude: {
     type: Number,
     default: null,
+  },
+  usdaZone: {
+    type: String,
+    required: true,
+  },
+  averageLastFrostDate: {
+    type: String,
+    required: true,
+  },
+  averageFirstFrostDate: {
+    type: String,
+    required: true,
+  },
+  growingZoneMeta: {
+    type: String,
+    required: true,
+  },
+  growingZoneError: {
+    type: String,
+    required: true,
   },
   zipLookupPending: {
     type: Boolean,
@@ -170,6 +232,9 @@ defineProps({
 
 defineEmits([
   'update:zipCode',
+  'update:usdaZone',
+  'update:averageLastFrostDate',
+  'update:averageFirstFrostDate',
   'update:lastFrostDate',
   'update:firstFrostDate',
   'lookup-zip',
