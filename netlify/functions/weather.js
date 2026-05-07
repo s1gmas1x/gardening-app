@@ -13,6 +13,18 @@ function logWeatherDebug(label, payload) {
   console.log(`[weather-debug] ${label}`, JSON.stringify(payload, null, 2))
 }
 
+function buildSafeErrorDebug(stage, error, extra = {}) {
+  return {
+    stage,
+    status: error?.status ?? null,
+    message: error?.message ?? '',
+    responsePreview: typeof error?.responseText === 'string'
+      ? error.responseText.slice(0, 240)
+      : '',
+    ...extra,
+  }
+}
+
 function normalizeText(value) {
   return typeof value === 'string' ? value : ''
 }
@@ -227,7 +239,13 @@ export async function handler(event) {
   const apiKey = process.env.OPENWEATHER_API_KEY
 
   if (!apiKey) {
-    return json(500, { error: 'Weather provider is not configured.' })
+    return json(500, {
+      error: 'Weather provider is not configured.',
+      debug: {
+        stage: 'missing-api-key',
+        hasApiKey: false,
+      },
+    })
   }
 
   const zipCode = normalizeText(event.queryStringParameters?.zipCode).trim()
@@ -249,7 +267,15 @@ export async function handler(event) {
 
   if (latitude === null || longitude === null) {
     if (!/^\d{5}$/.test(zipCode)) {
-      return json(400, { error: 'Provide a 5-digit ZIP code or numeric lat/lon.' })
+      return json(400, {
+        error: 'Provide a 5-digit ZIP code or numeric lat/lon.',
+        debug: {
+          stage: 'invalid-location-input',
+          zipCode,
+          latitude,
+          longitude,
+        },
+      })
     }
 
     try {
@@ -274,12 +300,25 @@ export async function handler(event) {
         status: error.status ?? null,
         responseText: error.responseText ?? '',
       })
-      return json(502, { error: 'Unable to resolve that location for weather lookup.' })
+      return json(502, {
+        error: 'Unable to resolve that location for weather lookup.',
+        debug: buildSafeErrorDebug('zip-lookup-error', error, {
+          zipCode,
+        }),
+      })
     }
   }
 
   if (latitude === null || longitude === null) {
-    return json(400, { error: 'Unable to resolve a valid latitude and longitude.' })
+    return json(400, {
+      error: 'Unable to resolve a valid latitude and longitude.',
+      debug: {
+        stage: 'invalid-lat-lon',
+        zipCode,
+        latitude,
+        longitude,
+      },
+    })
   }
 
   try {
@@ -345,7 +384,19 @@ export async function handler(event) {
         status: fallbackError.status ?? null,
         responseText: fallbackError.responseText ?? '',
       })
-      return json(502, { error: 'Unable to load weather data right now.' })
+      return json(502, {
+        error: 'Unable to load weather data right now.',
+        debug: {
+          oneCall: buildSafeErrorDebug('onecall-error', error, {
+            latitude,
+            longitude,
+          }),
+          fallback: buildSafeErrorDebug('fallback-error', fallbackError, {
+            latitude,
+            longitude,
+          }),
+        },
+      })
     }
   }
 }
