@@ -57,72 +57,6 @@ function pickWeatherSummary(weather = []) {
   }
 }
 
-function normalizeWeatherPayload({
-  oneCall,
-  zipCode,
-  latitude,
-  longitude,
-  locationName,
-  stateCode,
-}) {
-  const currentSummary = pickWeatherSummary(oneCall.current?.weather)
-
-  return {
-    source: 'openweather',
-    zipCode,
-    latitude,
-    longitude,
-    locationName,
-    stateCode,
-    lastUpdatedAt: new Date().toISOString(),
-    currentConditions: oneCall.current
-      ? {
-          temperatureF: toNumber(oneCall.current.temp),
-          feelsLikeF: toNumber(oneCall.current.feels_like),
-          windMph: toNumber(oneCall.current.wind_speed),
-          windGustMph: toNumber(oneCall.current.wind_gust),
-          humidityPercent: toNumber(oneCall.current.humidity),
-          ...currentSummary,
-        }
-      : null,
-    dailyForecast: Array.isArray(oneCall.daily)
-        ? oneCall.daily.slice(0, 7).map((entry) => ({
-          date: normalizeDate(entry.dt),
-          lowTempF: toNumber(entry.temp?.min),
-          highTempF: toNumber(entry.temp?.max),
-          precipitationChancePercent: toPercent(entry.pop),
-          windMph: toNumber(entry.wind_speed),
-          windGustMph: toNumber(entry.wind_gust),
-          ...pickWeatherSummary(entry.weather),
-        }))
-      : [],
-    hourlyForecast: Array.isArray(oneCall.hourly)
-      ? oneCall.hourly.slice(0, 24).map((entry) => ({
-          date: normalizeDateTime(entry.dt),
-          temperatureF: toNumber(entry.temp),
-          precipitationChancePercent: toPercent(entry.pop),
-          windMph: toNumber(entry.wind_speed),
-          windGustMph: toNumber(entry.wind_gust),
-          ...pickWeatherSummary(entry.weather),
-        }))
-      : [],
-    activeAlerts: Array.isArray(oneCall.alerts)
-      ? oneCall.alerts.map((alert, index) => ({
-          id: `${normalizeText(alert.event) || 'alert'}-${index}`,
-          source: normalizeText(alert.sender_name),
-          event: normalizeText(alert.event),
-          headline: normalizeText(alert.tags?.join(', ')),
-          severity: '',
-          startsAt: normalizeDateTime(alert.start),
-          endsAt: normalizeDateTime(alert.end),
-          description: normalizeText(alert.description),
-          instruction: '',
-          areas: [],
-        }))
-      : [],
-  }
-}
-
 function summarizeDailyForecast(hourlyEntries = []) {
   const groupedEntries = new Map()
 
@@ -179,7 +113,7 @@ function summarizeDailyForecast(hourlyEntries = []) {
     }))
 }
 
-function normalizeFallbackWeatherPayload({
+function normalizeWeatherPayload({
   currentWeather,
   forecast,
   zipCode,
@@ -192,7 +126,7 @@ function normalizeFallbackWeatherPayload({
   const currentSummary = pickWeatherSummary(currentWeather.weather)
 
   return {
-    source: 'openweather-fallback',
+    source: 'openweather',
     zipCode,
     latitude,
     longitude,
@@ -322,22 +256,26 @@ export async function handler(event) {
   }
 
   try {
-    const oneCall = await fetchJson(
-      `https://api.openweathermap.org/data/3.0/onecall?lat=${latitude}&lon=${longitude}&units=imperial&exclude=minutely&appid=${encodeURIComponent(apiKey)}`,
-    )
+    const [currentWeather, forecast] = await Promise.all([
+      fetchJson(
+        `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&units=imperial&appid=${encodeURIComponent(apiKey)}`,
+      ),
+      fetchJson(
+        `https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&units=imperial&appid=${encodeURIComponent(apiKey)}`,
+      ),
+    ])
 
-    logWeatherDebug('onecall-success', {
+    logWeatherDebug('weather-fetch-success', {
       source: 'openweather',
       latitude,
       longitude,
-      current: Boolean(oneCall.current),
-      dailyCount: Array.isArray(oneCall.daily) ? oneCall.daily.length : 0,
-      hourlyCount: Array.isArray(oneCall.hourly) ? oneCall.hourly.length : 0,
-      alertCount: Array.isArray(oneCall.alerts) ? oneCall.alerts.length : 0,
+      currentName: currentWeather.name,
+      forecastCount: Array.isArray(forecast.list) ? forecast.list.length : 0,
     })
 
     return json(200, normalizeWeatherPayload({
-      oneCall,
+      currentWeather,
+      forecast,
       zipCode,
       latitude,
       longitude,
@@ -345,58 +283,17 @@ export async function handler(event) {
       stateCode,
     }))
   } catch (error) {
-    logWeatherDebug('onecall-error', {
+    logWeatherDebug('weather-fetch-error', {
       message: error.message,
       status: error.status ?? null,
       responseText: error.responseText ?? '',
     })
-
-    try {
-      const [currentWeather, forecast] = await Promise.all([
-        fetchJson(
-          `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&units=imperial&appid=${encodeURIComponent(apiKey)}`,
-        ),
-        fetchJson(
-          `https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&units=imperial&appid=${encodeURIComponent(apiKey)}`,
-        ),
-      ])
-
-      logWeatherDebug('fallback-success', {
-        source: 'openweather-fallback',
+    return json(502, {
+      error: 'Unable to load weather data right now.',
+      debug: buildSafeErrorDebug('weather-fetch-error', error, {
         latitude,
         longitude,
-        currentName: currentWeather.name,
-        forecastCount: Array.isArray(forecast.list) ? forecast.list.length : 0,
-      })
-
-      return json(200, normalizeFallbackWeatherPayload({
-        currentWeather,
-        forecast,
-        zipCode,
-        latitude,
-        longitude,
-        locationName,
-        stateCode,
-      }))
-    } catch (fallbackError) {
-      logWeatherDebug('fallback-error', {
-        message: fallbackError.message,
-        status: fallbackError.status ?? null,
-        responseText: fallbackError.responseText ?? '',
-      })
-      return json(502, {
-        error: 'Unable to load weather data right now.',
-        debug: {
-          oneCall: buildSafeErrorDebug('onecall-error', error, {
-            latitude,
-            longitude,
-          }),
-          fallback: buildSafeErrorDebug('fallback-error', fallbackError, {
-            latitude,
-            longitude,
-          }),
-        },
-      })
-    }
+      }),
+    })
   }
 }
