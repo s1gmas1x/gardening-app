@@ -2,9 +2,9 @@
   <q-card flat bordered class="tray-card">
     <q-card-section class="row items-start justify-between q-col-gutter-md">
       <div class="col">
-        <div class="text-subtitle1 text-weight-medium">Propagation Trays</div>
+        <div class="text-subtitle1 text-weight-medium">Seed Trays</div>
         <div class="text-caption text-grey-7">
-          Indoor-start crop plans can be assigned to trays before they move into the garden.
+          Wake up indoor starts here, then guide them from tray cells into the garden.
         </div>
       </div>
 
@@ -28,7 +28,7 @@
               <span v-if="demand.transplantDate"> · Transplant {{ demand.transplantDate }}</span>
             </div>
             <div v-if="demand.recommendedTrayName" class="tray-demand__suggestion">
-              Suggested tray: {{ demand.recommendedTrayName }} · {{ demand.recommendationReason }}
+              Best fit right now: {{ demand.recommendedTrayName }} · {{ demand.recommendationReason }}
             </div>
 
             <div class="row q-col-gutter-sm items-end">
@@ -40,7 +40,7 @@
                   map-options
                   outlined
                   dense
-                  label="Assign to tray"
+                  label="Send to Tray"
                 />
               </div>
 
@@ -52,7 +52,7 @@
                   :max="demand.remainingCells"
                   outlined
                   dense
-                  label="Cells"
+                  label="Cells to Move"
                 />
               </div>
             </div>
@@ -61,22 +61,22 @@
               <q-btn
                 color="positive"
                 unelevated
-                label="Assign"
+                label="Assign Cells"
                 :disable="!selectedTrayByDemand[demand.batchId]"
                 @click="assignDemand(demand)"
               />
-              <q-btn flat label="Assign Remaining to New 72" @click="$emit('quick-assign-new-tray', demand)" />
+              <q-btn flat label="Send Remaining to New 72" @click="$emit('quick-assign-new-tray', demand)" />
             </div>
           </div>
         </div>
 
         <div v-else class="text-caption text-grey-7">
-          No indoor-start crop plans currently need tray space.
+          No indoor starts are waiting for tray space right now.
         </div>
       </section>
 
       <section class="tray-board__column">
-        <div class="tray-board__label">Current Trays</div>
+        <div class="tray-board__label">Active Trays</div>
 
         <div v-if="trays.length" class="tray-board__list">
           <div v-for="tray in trays" :key="tray.id" class="tray-summary">
@@ -92,9 +92,35 @@
               map-options
               outlined
               dense
-              label="Tray Status"
+              label="Tray Stage"
               @update:model-value="$emit('update-tray-status', { trayId: tray.id, status: $event })"
             />
+
+            <div class="tray-layout">
+              <div class="tray-layout__label">
+                Tray map
+              </div>
+              <div
+                class="tray-layout__grid"
+                :style="{ gridTemplateColumns: `repeat(${tray.grid.columns}, minmax(0, 1fr))` }"
+              >
+                <div
+                  v-for="cell in tray.cells"
+                  :key="`${tray.id}-cell-${cell.index}`"
+                  class="tray-layout__cell"
+                  :class="{
+                    'tray-layout__cell--filled': Boolean(cell.assignmentId),
+                  }"
+                  :style="cell.assignmentId ? { borderColor: cell.plantColor, color: cell.plantColor } : {}"
+                >
+                  <span class="tray-layout__cell-index">{{ cell.label }}</span>
+                  <span class="tray-layout__cell-plant">{{ cell.plantShortLabel || '·' }}</span>
+                  <q-tooltip>
+                    {{ cell.assignmentId ? `${cell.label} · ${cell.plantName}` : `${cell.label} · Open` }}
+                  </q-tooltip>
+                </div>
+              </div>
+            </div>
 
             <div v-if="tray.assignments.length" class="tray-summary__assignments">
               <div v-for="assignment in tray.assignments" :key="assignment.id" class="tray-summary__assignment">
@@ -103,6 +129,9 @@
                   <div class="tray-summary__assignment-meta">
                     {{ assignment.areaName }} · {{ assignment.cellCount }} cells
                     <span v-if="assignment.transplantDate"> · Transplant {{ assignment.transplantDate }}</span>
+                  </div>
+                  <div v-if="assignment.cellLabel" class="tray-summary__assignment-cells">
+                    Cells: {{ assignment.cellLabel }}
                   </div>
                 </div>
 
@@ -115,7 +144,7 @@
                     icon="edit_location_alt"
                     @click="$emit('guided-transplant', assignment)"
                   >
-                    <q-tooltip>Guide transplant placement</q-tooltip>
+                    <q-tooltip>Guide this transplant run</q-tooltip>
                   </q-btn>
 
                   <q-select
@@ -125,26 +154,26 @@
                     map-options
                     outlined
                     dense
-                    label="Status"
+                    label="Stage"
                     class="tray-summary__assignment-status"
                     @update:model-value="$emit('update-assignment-status', { assignmentId: assignment.id, status: $event })"
                   />
 
                   <q-btn flat dense icon="delete" @click="$emit('remove-assignment', assignment.id)">
-                    <q-tooltip>Remove assignment</q-tooltip>
+                    <q-tooltip>Remove from tray</q-tooltip>
                   </q-btn>
                 </div>
               </div>
             </div>
 
             <div v-else class="text-caption text-grey-7">
-              No assignments yet.
+              This tray is waiting for its first seedlings.
             </div>
           </div>
         </div>
 
         <div v-else class="text-caption text-grey-7">
-          Create a tray to start assigning indoor-start crop plans.
+          Create a tray to begin waking up indoor starts.
         </div>
       </section>
     </q-card-section>
@@ -273,6 +302,53 @@ function assignDemand(demand) {
   color: #4c6b45;
 }
 
+.tray-layout {
+  display: grid;
+  gap: 8px;
+}
+
+.tray-layout__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #607259;
+}
+
+.tray-layout__grid {
+  display: grid;
+  gap: 4px;
+}
+
+.tray-layout__cell {
+  min-width: 0;
+  aspect-ratio: 1 / 1;
+  display: grid;
+  align-content: space-between;
+  padding: 4px 3px;
+  border-radius: 8px;
+  border: 1px solid rgba(95, 114, 89, 0.18);
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.tray-layout__cell--filled {
+  background: rgba(244, 249, 240, 0.98);
+  border-width: 2px;
+}
+
+.tray-layout__cell-index {
+  font-size: 9px;
+  line-height: 1;
+  color: #7a8a73;
+}
+
+.tray-layout__cell-plant {
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 700;
+  text-align: center;
+}
+
 .tray-summary__assignments {
   display: grid;
   gap: 8px;
@@ -288,6 +364,12 @@ function assignDemand(demand) {
 
 .tray-summary__assignment-copy {
   min-width: 0;
+}
+
+.tray-summary__assignment-cells {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #586d52;
 }
 
 .tray-summary__assignment-actions {

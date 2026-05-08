@@ -1,173 +1,109 @@
 <template>
-  <q-card flat bordered class="today-card">
-    <q-card-section class="today-card__header">
-      <div class="today-card__heading">
-        <div class="today-card__eyebrow">Action Center</div>
-        <div class="today-card__title">Today</div>
-        <div class="today-card__date">{{ todayLabel }}</div>
+  <q-card
+    flat
+    bordered
+    class="today-widget"
+    :class="{ 'today-widget--expanded': isExpanded }"
+    role="button"
+    tabindex="0"
+    :aria-label="cardAriaLabel"
+    @click="toggleExpanded"
+    @keydown.enter.prevent="toggleExpanded"
+    @keydown.space.prevent="toggleExpanded"
+  >
+    <q-card-section class="today-widget__shell q-pa-sm">
+      <div class="today-widget__header">
+        <div class="today-widget__label">TODAY</div>
+
+        <div class="today-widget__alerts">
+          <q-btn
+            flat
+            round
+            dense
+            size="11px"
+            color="grey-8"
+            icon="notifications"
+            aria-label="Open today action center notifications"
+            tabindex="-1"
+          />
+          <q-badge
+            v-if="notificationCount"
+            color="negative"
+            rounded
+            floating
+            :label="notificationCount"
+            :aria-label="`${notificationCount} notifications`"
+          />
+        </div>
       </div>
 
-      <q-btn
-        flat
-        round
-        dense
-        color="positive"
-        :icon="isExpanded ? 'keyboard_arrow_up' : 'keyboard_arrow_down'"
-        @click="isExpanded = !isExpanded"
-      />
+      <div class="today-widget__date">
+        <div class="today-widget__day">{{ todayDayLabel }}</div>
+        <div class="today-widget__month">{{ todayMonthLabel }}</div>
+      </div>
+
+      <div class="today-widget__chips q-mt-sm">
+        <q-chip
+          v-for="chip in visibleChips"
+          :key="chip.key"
+          dense
+          :outline="!isExpanded"
+          :color="chip.color"
+          :text-color="isExpanded ? 'white' : chip.color"
+          class="today-widget__chip"
+          :aria-label="chip.accessibleLabel"
+          :title="chip.accessibleLabel"
+        >
+          <q-icon :name="chip.icon" size="14px" />
+          <span v-if="isExpanded" class="q-ml-xs">{{ chip.label }}</span>
+          <span v-else class="q-ml-xs">{{ chip.count }}</span>
+          <q-tooltip>{{ chip.accessibleLabel }}</q-tooltip>
+        </q-chip>
+      </div>
+
+      <q-slide-transition>
+        <div v-show="isExpanded" class="today-widget__details q-mt-sm">
+          <div class="today-widget__summary-row">
+            <q-badge rounded color="positive" class="today-widget__summary-badge" label="Due" />
+            <span>{{ dueToday.length ? dueToday[0].title : 'The garden is steady today.' }}</span>
+          </div>
+
+          <div
+            v-if="weatherRisks.length"
+            class="today-widget__summary-row"
+          >
+            <q-badge
+              rounded
+              color="warning"
+              text-color="dark"
+              class="today-widget__summary-badge"
+              label="Weather"
+            />
+            <span>{{ weatherRisks[0].title }}</span>
+          </div>
+
+          <div
+            v-else-if="propagationStatus.length"
+            class="today-widget__summary-row"
+          >
+            <q-badge rounded color="secondary" class="today-widget__summary-badge" label="Tray" />
+            <span>{{ propagationStatus[0].title }}</span>
+          </div>
+
+          <div
+            v-else-if="upcomingThisWeek.length"
+            class="today-widget__summary-row"
+          >
+            <q-badge rounded color="primary" class="today-widget__summary-badge" label="Next" />
+            <span>{{ upcomingThisWeek[0].title }}</span>
+          </div>
+
+          <div class="today-widget__hint">
+            Tap again to tuck this away.
+          </div>
+        </div>
+      </q-slide-transition>
     </q-card-section>
-
-    <q-card-section class="today-card__snapshot">
-      <div class="today-card__snapshot-item">
-        <span class="today-card__snapshot-value">{{ dueToday.length }}</span>
-        <span class="today-card__snapshot-label">due</span>
-      </div>
-      <div class="today-card__snapshot-item">
-        <span class="today-card__snapshot-value">{{ weatherRisks.length }}</span>
-        <span class="today-card__snapshot-label">weather</span>
-      </div>
-      <div class="today-card__snapshot-item">
-        <span class="today-card__snapshot-value">{{ propagationStatus.length }}</span>
-        <span class="today-card__snapshot-label">trays</span>
-      </div>
-    </q-card-section>
-
-    <q-card-section class="today-card__peek">
-      <div v-if="topPriorityItem" class="today-card__peek-title">
-        {{ topPriorityItem.title }}
-      </div>
-      <div v-if="topPriorityItem?.meta" class="today-card__peek-meta">
-        {{ topPriorityItem.meta }}
-      </div>
-      <div v-else class="today-card__peek-meta">
-        No urgent actions right now.
-      </div>
-    </q-card-section>
-
-    <q-slide-transition>
-      <div v-show="isExpanded">
-        <q-separator />
-
-        <q-card-section class="today-card__sections">
-          <section class="today-card__section">
-            <div class="today-card__section-header">
-              <div class="today-card__section-title">Due Today</div>
-              <div class="today-card__section-meta">{{ dueTodayMeta }}</div>
-            </div>
-
-            <div v-if="dueToday.length" class="today-card__list">
-              <article
-                v-for="item in dueToday.slice(0, 3)"
-                :key="item.id"
-                class="today-card__item"
-              >
-                <div class="today-card__item-copy">
-                  <div class="today-card__item-row">
-                    <div class="today-card__item-title">{{ item.title }}</div>
-                    <q-badge :color="item.chipColor" text-color="white" rounded>
-                      {{ item.chipLabel }}
-                    </q-badge>
-                  </div>
-                  <div v-if="item.meta" class="today-card__item-meta">{{ item.meta }}</div>
-                </div>
-              </article>
-            </div>
-
-            <div v-else class="today-card__empty">
-              Nothing due today.
-            </div>
-          </section>
-
-          <section class="today-card__section">
-            <div class="today-card__section-header">
-              <div class="today-card__section-title">This Week</div>
-              <div class="today-card__section-meta">{{ upcomingMeta }}</div>
-            </div>
-
-            <div v-if="upcomingThisWeek.length" class="today-card__list">
-              <article
-                v-for="item in upcomingThisWeek.slice(0, 3)"
-                :key="item.id"
-                class="today-card__item"
-              >
-                <div class="today-card__item-copy">
-                  <div class="today-card__item-row">
-                    <div class="today-card__item-title">{{ item.title }}</div>
-                    <q-badge :color="item.chipColor" text-color="white" rounded>
-                      {{ item.chipLabel }}
-                    </q-badge>
-                  </div>
-                  <div v-if="item.meta" class="today-card__item-meta">{{ item.meta }}</div>
-                </div>
-              </article>
-            </div>
-
-            <div v-else class="today-card__empty">
-              No immediate upcoming items.
-            </div>
-          </section>
-
-          <section class="today-card__section">
-            <div class="today-card__section-header">
-              <div class="today-card__section-title">Weather</div>
-              <div class="today-card__section-meta">{{ weatherMeta }}</div>
-            </div>
-
-            <div v-if="weatherRisks.length" class="today-card__list">
-              <article
-                v-for="item in weatherRisks.slice(0, 2)"
-                :key="item.id"
-                class="today-card__item today-card__item--warning"
-              >
-                <div class="today-card__item-copy">
-                  <div class="today-card__item-row">
-                    <div class="today-card__item-title">{{ item.title }}</div>
-                    <q-badge :color="item.chipColor" text-color="white" rounded>
-                      {{ item.chipLabel }}
-                    </q-badge>
-                  </div>
-                  <div v-if="item.meta" class="today-card__item-meta">{{ item.meta }}</div>
-                </div>
-              </article>
-            </div>
-
-            <div v-else class="today-card__empty">
-              No active weather flags.
-            </div>
-          </section>
-
-          <section class="today-card__section">
-            <div class="today-card__section-header">
-              <div class="today-card__section-title">Propagation</div>
-              <div class="today-card__section-meta">{{ propagationMeta }}</div>
-            </div>
-
-            <div v-if="propagationStatus.length" class="today-card__list">
-              <article
-                v-for="item in propagationStatus.slice(0, 2)"
-                :key="item.id"
-                class="today-card__item"
-                :class="{ 'today-card__item--warning': item.chipLabel === 'warning' }"
-              >
-                <div class="today-card__item-copy">
-                  <div class="today-card__item-row">
-                    <div class="today-card__item-title">{{ item.title }}</div>
-                    <q-badge :color="item.chipColor" text-color="white" rounded>
-                      {{ item.chipLabel }}
-                    </q-badge>
-                  </div>
-                  <div v-if="item.meta" class="today-card__item-meta">{{ item.meta }}</div>
-                </div>
-              </article>
-            </div>
-
-            <div v-else class="today-card__empty">
-              No propagation issues.
-            </div>
-          </section>
-        </q-card-section>
-      </div>
-    </q-slide-transition>
   </q-card>
 </template>
 
@@ -176,6 +112,14 @@ import { computed, ref } from 'vue'
 
 const props = defineProps({
   todayLabel: {
+    type: String,
+    required: true,
+  },
+  todayDayLabel: {
+    type: String,
+    required: true,
+  },
+  todayMonthLabel: {
     type: String,
     required: true,
   },
@@ -215,187 +159,165 @@ const props = defineProps({
 
 const isExpanded = ref(false)
 
-const topPriorityItem = computed(() => (
-  [
-    ...props.weatherRisks,
-    ...props.dueToday,
-    ...props.propagationStatus,
-    ...props.upcomingThisWeek,
-  ][0] ?? null
+function toggleExpanded() {
+  isExpanded.value = !isExpanded.value
+}
+
+const overdueCount = computed(() => (
+  props.dueToday.filter((item) => item.chipLabel === 'overdue').length
+))
+
+const notificationCount = computed(() => (
+  props.weatherRisks.length + overdueCount.value
+))
+
+const visibleChips = computed(() => ([
+  {
+    key: 'due',
+    icon: 'task_alt',
+    color: props.dueToday.length ? 'positive' : 'grey-6',
+    count: props.dueToday.length,
+    label: `${props.dueToday.length} Due`,
+    accessibleLabel: `${props.dueToday.length} tasks due today`,
+  },
+  {
+    key: 'weather',
+    icon: 'cloud',
+    color: props.weatherRisks.length ? 'warning' : 'primary',
+    count: props.weatherRisks.length,
+    label: `${props.weatherRisks.length} Weather`,
+    accessibleLabel: `${props.weatherRisks.length} weather risks or alerts`,
+  },
+  {
+    key: 'trays',
+    icon: 'spa',
+    color: props.propagationStatus.length ? 'secondary' : 'grey-6',
+    count: props.propagationStatus.length,
+    label: `${props.propagationStatus.length} Trays`,
+    accessibleLabel: `${props.propagationStatus.length} propagation items`,
+  },
+  {
+    key: 'overdue',
+    icon: 'priority_high',
+    color: overdueCount.value ? 'negative' : 'grey-6',
+    count: overdueCount.value,
+    label: `${overdueCount.value} Overdue`,
+    accessibleLabel: `${overdueCount.value} overdue tasks`,
+  },
+]))
+
+const cardAriaLabel = computed(() => (
+  `Today action center for ${props.todayLabel}. `
+  + `${props.dueToday.length} due, `
+  + `${props.weatherRisks.length} weather, `
+  + `${props.propagationStatus.length} tray items, `
+  + `${overdueCount.value} overdue.`
 ))
 </script>
 
 <style scoped>
-.today-card {
-  width: min(100%, 340px);
-  border-radius: 20px;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at top left, rgba(179, 214, 148, 0.35), transparent 32%),
-    linear-gradient(135deg, #fffdf6 0%, #f5faef 55%, #edf4e7 100%);
-  box-shadow: 0 16px 36px rgba(53, 72, 47, 0.12);
+.today-widget {
+  width: min(260px, calc(100vw - 20px));
+  border-radius: 16px;
+  background: rgba(255, 252, 244, 0.9);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 10px 28px rgba(37, 51, 34, 0.14);
+  cursor: pointer;
+  user-select: none;
 }
 
-.today-card__header {
+.today-widget:focus-visible {
+  outline: 2px solid #7bbf58;
+  outline-offset: 2px;
+}
+
+.today-widget__shell {
+  display: grid;
+  gap: 4px;
+  min-height: 142px;
+}
+
+.today-widget__header {
   display: flex;
   align-items: start;
   justify-content: space-between;
   gap: 12px;
-  padding-bottom: 10px;
 }
 
-.today-card__eyebrow {
-  font-size: 0.7rem;
+.today-widget__label {
+  font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #5f7a50;
+  letter-spacing: 0.14em;
+  color: #64785a;
 }
 
-.today-card__title {
-  font-size: 1.5rem;
-  line-height: 0.95;
-  letter-spacing: -0.05em;
-  color: #26351f;
+.today-widget__alerts {
+  position: relative;
 }
 
-.today-card__date {
-  margin-top: 2px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: #5a7150;
+.today-widget__alerts :deep(.q-btn) {
+  min-width: 30px;
+  min-height: 30px;
 }
 
-.today-card__snapshot {
+.today-widget__date {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  padding-top: 0;
-}
-
-.today-card__snapshot-item {
-  display: flex;
-  flex-direction: column;
   gap: 2px;
-  padding: 10px 12px;
-  border: 1px solid rgba(129, 160, 107, 0.24);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.72);
 }
 
-.today-card__snapshot-value {
-  font-size: 1.05rem;
+.today-widget__day {
+  font-size: 2.15rem;
+  line-height: 0.92;
   font-weight: 700;
-  color: #253322;
+  letter-spacing: -0.06em;
+  color: #24341f;
 }
 
-.today-card__snapshot-label {
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #677b5d;
+.today-widget__month {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #687b60;
 }
 
-.today-card__peek {
+.today-widget__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.today-widget__chip {
+  margin: 0;
+  min-height: 26px;
+  padding-inline: 6px;
+  font-weight: 600;
+}
+
+.today-widget__details {
+  display: grid;
+  gap: 6px;
   padding-top: 2px;
 }
 
-.today-card__peek-title {
-  font-size: 0.86rem;
-  font-weight: 600;
-  color: #2c3925;
-}
-
-.today-card__peek-meta {
-  margin-top: 2px;
-  font-size: 0.75rem;
-  color: #697d60;
-}
-
-.today-card__sections {
+.today-widget__summary-row {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.today-card__section {
-  display: grid;
-  gap: 10px;
-  align-content: start;
-}
-
-.today-card__section-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.today-card__section-title {
-  font-size: 0.88rem;
-  font-weight: 700;
-  color: #2a3924;
-}
-
-.today-card__section-meta {
-  font-size: 0.76rem;
-  color: #6b8061;
-  text-align: right;
-}
-
-.today-card__list {
-  display: grid;
-  gap: 10px;
-}
-
-.today-card__item {
-  padding: 10px 12px;
-  border: 1px solid #dbe7d4;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.88);
-}
-
-.today-card__item--warning {
-  border-color: #efd7a7;
-  background: linear-gradient(180deg, #fffdf5 0%, #fff8e4 100%);
-}
-
-.today-card__item-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.today-card__item-title {
-  font-size: 0.84rem;
-  font-weight: 600;
-  color: #283422;
-}
-
-.today-card__item-meta {
-  margin-top: 4px;
+  align-items: center;
+  gap: 8px;
   font-size: 0.78rem;
-  color: #687d5f;
+  color: #42553d;
+  line-height: 1.25;
 }
 
-.today-card__item-note {
-  margin-top: 4px;
-  font-size: 0.78rem;
-  color: #596d51;
+.today-widget__summary-badge {
+  flex: 0 0 auto;
 }
 
-.today-card__empty {
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.62);
-  font-size: 0.8rem;
-  color: #6b8061;
+.today-widget__hint {
+  padding-top: 2px;
+  font-size: 0.72rem;
+  color: #778a70;
 }
 
-@media (max-width: 640px) {
-  .today-card {
-    width: 100%;
-  }
+.today-widget--expanded {
+  width: min(320px, calc(100vw - 24px));
 }
 </style>

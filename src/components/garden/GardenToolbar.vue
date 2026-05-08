@@ -2,9 +2,9 @@
   <q-card flat bordered class="toolbar-card">
     <q-card-section class="row items-center q-col-gutter-sm">
       <div class="col-12 col-md">
-        <div class="text-subtitle1 text-weight-medium">Planner Tools</div>
+        <div class="text-subtitle1 text-weight-medium">Canvas Controls</div>
         <div class="text-caption text-grey-7">
-          `{{ widthFeet }} x {{ lengthFeet }} ft` garden, `{{ bedCount }}` planting area<span v-if="bedCount !== 1">s</span>
+          `{{ widthFeet }} x {{ lengthFeet }} ft` mapped, `{{ bedCount }}` growing zone<span v-if="bedCount !== 1">s</span> in play
         </div>
       </div>
 
@@ -24,10 +24,10 @@
       </div>
 
       <div class="col-auto">
-        <q-btn-dropdown color="positive" unelevated icon="add" label="Add Area">
+        <q-btn-dropdown color="positive" unelevated icon="add" label="Place Area">
           <q-list dense>
             <q-item clickable v-close-popup @click="$emit('add-bed', 'regular')">
-              <q-item-section>Regular Bed</q-item-section>
+              <q-item-section>Ground Bed</q-item-section>
             </q-item>
             <q-item clickable v-close-popup @click="$emit('add-bed', 'raised')">
               <q-item-section>Raised Bed</q-item-section>
@@ -40,7 +40,7 @@
       </div>
 
       <div class="col-auto">
-        <q-btn flat icon="straighten" label="Garden Size" @click="$emit('edit-garden-size')" />
+        <q-btn flat icon="straighten" label="Edit Footprint" @click="$emit('edit-garden-size')" />
       </div>
 
       <div class="col-auto">

@@ -3,9 +3,9 @@
     <q-card class="garden-dimensions-dialog">
       <q-card-section class="row items-start justify-between q-col-gutter-md">
         <div class="col">
-          <div class="text-subtitle1 text-weight-medium">Garden Size</div>
+          <div class="text-subtitle1 text-weight-medium">Garden Footprint</div>
           <div class="text-caption text-grey-7">
-            Update the footprint without losing the rest of the planner state.
+            Reshape the garden footprint without losing the rest of the season plan.
           </div>
         </div>
 
@@ -45,10 +45,10 @@
       </q-card-section>
 
       <q-card-actions align="between" class="q-px-md q-pb-md">
-        <q-btn flat label="Start Over" @click="$emit('start-over')" />
+        <q-btn flat label="Reset Garden" @click="$emit('start-over')" />
         <div class="row q-gutter-sm">
           <q-btn flat label="Cancel" @click="$emit('update:modelValue', false)" />
-          <q-btn color="positive" unelevated label="Update Garden" @click="$emit('apply')" />
+          <q-btn color="positive" unelevated label="Update Footprint" @click="$emit('apply')" />
         </div>
       </q-card-actions>
     </q-card>

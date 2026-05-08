@@ -3,9 +3,9 @@
     <q-card v-if="selectedBed" class="planting-dialog">
       <q-card-section class="planting-dialog__header">
         <div>
-          <div class="text-overline text-positive">Plant {{ selectedBed.name }}</div>
+          <div class="text-overline text-positive">Grow In {{ selectedBed.name }}</div>
           <div class="text-subtitle1 text-weight-medium">
-            {{ selectedPlant?.name ?? 'Choose a plant' }}
+            {{ selectedPlant?.name ?? 'Choose what to grow' }}
           </div>
           <div class="text-caption text-grey-7">
             {{ selectedBed.widthFeet }} x {{ selectedBed.heightFeet }} ft
@@ -21,12 +21,12 @@
       <q-card-section class="planting-dialog__body">
         <div class="planting-dialog__controls">
           <div v-if="workspaceMode === 'current' && guidedTransplantRequest" class="planting-dialog__guide">
-            <div class="planting-dialog__guide-title">Guided Transplant Placement</div>
+            <div class="planting-dialog__guide-title">Guided Transplant Run</div>
             <div class="text-caption text-grey-7">
-              Place the actual transplanted plants in Current Garden, then confirm the tray assignment.
+              Place the real transplants in Garden Now, then confirm the tray assignment.
             </div>
             <div class="text-caption text-grey-7">
-              {{ guidedTransplantPlacedCount }}/{{ guidedTransplantRequest.quantity }} placed in this guided run
+              {{ guidedTransplantPlacedCount }}/{{ guidedTransplantRequest.quantity }} placed in this run
             </div>
           </div>
 
@@ -35,14 +35,14 @@
             :options="plantOptions"
             emit-value
             map-options
-            outlined
-            dense
-            label="Plant"
-            @update:model-value="$emit('update:selectedPlantId', $event)"
+              outlined
+              dense
+              label="Crop"
+              @update:model-value="$emit('update:selectedPlantId', $event)"
           />
 
           <div v-if="selectedCropPlan" class="planting-dialog__plan-editor">
-            <div class="planting-dialog__plans-label">Selected Crop Plan</div>
+            <div class="planting-dialog__plans-label">Crop Plan</div>
 
             <q-select
               :model-value="selectedCropPlan.method"
@@ -51,7 +51,7 @@
               map-options
               outlined
               dense
-              label="Method"
+              label="Growing Method"
               @update:model-value="$emit('update:selectedCropPlanMethod', $event)"
             />
 
@@ -64,7 +64,7 @@
                   step="1"
                   outlined
                   dense
-                  label="Target Quantity"
+                  label="Target Count"
                   @update:model-value="$emit('update:selectedCropPlanTargetQuantity', $event)"
                 />
               </div>
@@ -90,7 +90,7 @@
               autogrow
               outlined
               dense
-              label="Notes"
+              label="Garden Notes"
               @update:model-value="$emit('update:selectedCropPlanNotes', $event)"
             />
           </div>
@@ -104,7 +104,7 @@
             text-color="grey-8"
             :options="[
               { label: 'Grid', value: 'grid', icon: 'grid_view' },
-              { label: 'Free', value: 'free', icon: 'open_with' },
+              { label: 'Freeform', value: 'free', icon: 'open_with' },
             ]"
             @update:model-value="$emit('update:plantingLayoutMode', $event)"
           />
@@ -119,7 +119,7 @@
             text-color="grey-8"
             :options="[
               { label: 'Single', value: 'single', icon: 'ads_click' },
-              { label: 'Drag Area', value: 'drag', icon: 'select_all' },
+              { label: 'Sweep Area', value: 'drag', icon: 'select_all' },
             ]"
             @update:model-value="$emit('update:plantingMode', $event)"
           />
@@ -128,7 +128,7 @@
             <q-btn
               color="positive"
               unelevated
-              label="Place Planned"
+              label="Place Planned Count"
               :disable="selectedCropPlanRemainingCount <= 0"
               @click="$emit('place-planned')"
             />
@@ -136,12 +136,12 @@
               v-if="workspaceMode === 'current' && guidedTransplantRequest"
               color="secondary"
               unelevated
-              label="Use Suggested Positions"
+              label="Use Suggested Spots"
               :disable="!guidedSuggestedPlantings.length"
               @click="$emit('place-guided-suggested')"
             />
-            <q-btn color="positive" unelevated label="Fill All" @click="$emit('fill-all')" />
-            <q-btn flat label="Clear Area" @click="$emit('clear-area')" />
+            <q-btn color="positive" unelevated label="Fill This Zone" @click="$emit('fill-all')" />
+            <q-btn flat label="Clear Zone" @click="$emit('clear-area')" />
           </div>
 
           <div v-else class="planting-dialog__actions">
@@ -151,20 +151,20 @@
               color="positive"
               @update:model-value="$emit('update:freePlacementSnap', $event)"
             />
-            <q-btn flat label="Clear Area" @click="$emit('clear-area')" />
+            <q-btn flat label="Clear Zone" @click="$emit('clear-area')" />
           </div>
 
           <div class="text-caption text-grey-7">
             {{ plantingLayoutMode === 'grid'
               ? (plantingMode === 'single'
-              ? 'Single mode: click planting spots to place or remove the selected plant.'
-              : 'Drag mode: drag a box across planting spots to fill an area.')
-              : 'Free mode: click to place plants, drag markers to reposition them, and watch spacing halos for conflicts.' }}
+              ? 'Single mode: click open planting spots to add or remove this crop.'
+              : 'Sweep mode: drag across planting spots to fill a larger section quickly.')
+              : 'Freeform mode: place crops by hand, drag them into place, and watch spacing halos for crowding.' }}
           </div>
 
           <div v-if="plantingLayoutMode === 'free'" class="text-caption text-grey-7">
             {{ freePlacementConflictCount }} spacing conflict<span v-if="freePlacementConflictCount !== 1">s</span>
-            · {{ freePlacementBoundaryCount }} boundary warning<span v-if="freePlacementBoundaryCount !== 1">s</span>
+            · {{ freePlacementBoundaryCount }} edge warning<span v-if="freePlacementBoundaryCount !== 1">s</span>
           </div>
 
           <div v-if="plantingSummary.length" class="planting-dialog__legend">
@@ -196,7 +196,7 @@
             <q-btn
               color="positive"
               unelevated
-              label="Finish Guided Transplant"
+              label="Finish Transplant Run"
               :disable="guidedTransplantPlacedCount <= 0"
               @click="$emit('finish-guided-transplant')"
             />

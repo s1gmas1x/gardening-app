@@ -2,9 +2,9 @@
   <q-card flat bordered class="weather-card">
     <q-card-section class="row items-start justify-between q-col-gutter-md">
       <div class="col">
-        <div class="text-subtitle1 text-weight-medium">Weather Summary</div>
+        <div class="text-subtitle1 text-weight-medium">Sky & Forecast</div>
         <div class="text-caption text-grey-7">
-          Current conditions and a simple 7 day outlook for garden decisions.
+          A quick field reading for today, plus a simple 7 day outlook for garden decisions.
         </div>
       </div>
 
@@ -12,7 +12,7 @@
         <q-btn
           color="secondary"
           outline
-          label="Refresh Weather"
+          label="Refresh Sky"
           :loading="weatherPending"
           :disable="!canRefresh"
           @click="$emit('refresh-weather')"
@@ -23,7 +23,7 @@
     <q-card-section class="row q-col-gutter-md q-pt-none">
       <div class="col-12 col-md-7">
         <div class="weather-card__location">
-          {{ locationDisplayName || 'Location not set' }}
+          {{ locationDisplayName || 'Set a home location to wake up the sky view' }}
         </div>
 
         <div v-if="currentConditions" class="weather-card__current">
@@ -32,7 +32,7 @@
           </div>
           <div class="weather-card__current-meta">
             <div class="weather-card__summary">
-              {{ currentConditions.summary || currentConditions.description || 'Current conditions' }}
+              {{ currentConditions.summary || currentConditions.description || 'Field conditions right now' }}
             </div>
             <div class="text-caption text-grey-7">
               Feels like {{ formatWhole(currentConditions.feelsLikeF) }}° ·
@@ -46,7 +46,7 @@
         </div>
 
         <div v-else class="text-caption text-grey-7 q-mt-sm">
-          Refresh weather after setting a location to load current conditions.
+          Refresh the sky view after setting a location to load current conditions.
         </div>
 
         <div class="weather-card__risk-list q-mt-md">
@@ -54,25 +54,25 @@
             <q-badge :color="hasFreezeRisk ? 'negative' : 'grey-5'" text-color="white">
               Freeze
             </q-badge>
-            <span>{{ hasFreezeRisk ? 'Freeze risk in the next 7 days' : 'No freeze risk in the next 7 days' }}</span>
+            <span>{{ hasFreezeRisk ? 'Freeze risk is on the horizon' : 'No freeze risk in the next 7 days' }}</span>
           </div>
           <div class="weather-card__risk-item" :class="{ 'weather-card__risk-item--active': hasHeatRisk }">
             <q-badge :color="hasHeatRisk ? 'warning' : 'grey-5'" text-color="white">
               Heat
             </q-badge>
-            <span>{{ hasHeatRisk ? 'Heat stress possible' : 'No heat stress flag in the next 7 days' }}</span>
+            <span>{{ hasHeatRisk ? 'Heat stress may build this week' : 'No heat stress flag in the next 7 days' }}</span>
           </div>
           <div class="weather-card__risk-item" :class="{ 'weather-card__risk-item--active': hasWindRisk }">
             <q-badge :color="hasWindRisk ? 'deep-orange' : 'grey-5'" text-color="white">
               Wind
             </q-badge>
-            <span>{{ hasWindRisk ? 'Wind may affect hardening off or transplanting' : 'No high wind flag in the next 7 days' }}</span>
+            <span>{{ hasWindRisk ? 'Wind may interfere with hardening off or transplanting' : 'No high wind flag in the next 7 days' }}</span>
           </div>
           <div class="weather-card__risk-item" :class="{ 'weather-card__risk-item--active': hasActiveWeatherAlerts }">
             <q-badge :color="hasActiveWeatherAlerts ? 'negative' : 'grey-5'" text-color="white">
               Alerts
             </q-badge>
-            <span>{{ hasActiveWeatherAlerts ? 'Active weather alerts in the area' : 'No active weather alerts' }}</span>
+            <span>{{ hasActiveWeatherAlerts ? 'Active weather alerts nearby' : 'No active weather alerts' }}</span>
           </div>
         </div>
       </div>
@@ -81,15 +81,15 @@
         <div class="weather-card__meta-grid">
           <div class="weather-card__meta-item">
             <div class="weather-card__meta-label">USDA Zone</div>
-            <div class="weather-card__meta-value">{{ usdaZone || 'Unavailable' }}</div>
+            <div class="weather-card__meta-value">{{ usdaZone || 'Not set' }}</div>
           </div>
           <div class="weather-card__meta-item">
             <div class="weather-card__meta-label">Avg Last Frost</div>
-            <div class="weather-card__meta-value">{{ averageLastFrostDate || 'Unavailable' }}</div>
+            <div class="weather-card__meta-value">{{ averageLastFrostDate || 'Not set' }}</div>
           </div>
           <div class="weather-card__meta-item">
             <div class="weather-card__meta-label">Avg First Frost</div>
-            <div class="weather-card__meta-value">{{ averageFirstFrostDate || 'Unavailable' }}</div>
+            <div class="weather-card__meta-value">{{ averageFirstFrostDate || 'Not set' }}</div>
           </div>
           <div class="weather-card__meta-item">
             <div class="weather-card__meta-label">Active Alerts</div>
@@ -106,7 +106,7 @@
     </q-card-section>
 
     <q-card-section v-if="activeAlerts.length" class="q-pt-none">
-      <div class="weather-card__section-title">Active Alerts</div>
+      <div class="weather-card__section-title">Weather Watch</div>
       <div class="weather-card__alerts">
         <div
           v-for="alert in activeAlerts"
@@ -114,10 +114,10 @@
           class="weather-card__alert"
         >
           <div class="weather-card__alert-title">
-            {{ alert.event || 'Weather alert' }}
+            {{ alert.event || 'Weather watch' }}
           </div>
           <div class="text-caption text-grey-7">
-            {{ alert.source || 'Alert source' }}
+            {{ alert.source || 'Weather service' }}
             <span v-if="alert.startsAt"> · Starts {{ formatTimestamp(alert.startsAt) }}</span>
             <span v-if="alert.endsAt"> · Ends {{ formatTimestamp(alert.endsAt) }}</span>
           </div>
@@ -144,7 +144,7 @@
             <span>{{ formatWhole(day.highTempF) }}°</span>
           </div>
           <div class="weather-card__forecast-summary">
-            {{ day.summary || day.description || 'Forecast unavailable' }}
+            {{ day.summary || day.description || 'Forecast still forming' }}
           </div>
         </div>
       </div>

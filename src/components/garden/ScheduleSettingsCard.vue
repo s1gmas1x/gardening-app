@@ -2,9 +2,9 @@
   <q-card flat bordered class="schedule-card">
     <q-card-section class="row items-start justify-between q-col-gutter-md">
       <div class="col">
-        <div class="text-subtitle1 text-weight-medium">Schedule Settings</div>
+        <div class="text-subtitle1 text-weight-medium">Season Timing</div>
         <div class="text-caption text-grey-7">
-          Zip code is stored for future lookup. USDA zone and average frost dates can be looked up or overridden manually.
+          Set the home climate for this garden. ZIP, zone, and frost windows help the season fall into place.
         </div>
       </div>
     </q-card-section>
@@ -15,7 +15,7 @@
           :model-value="zipCode"
           outlined
           dense
-          label="Zip Code"
+          label="Home ZIP"
           maxlength="10"
           @update:model-value="$emit('update:zipCode', $event)"
         />
@@ -25,7 +25,7 @@
         <q-btn
           color="positive"
           unelevated
-          label="Lookup ZIP"
+          label="Find Climate"
           :loading="zipLookupPending"
           @click="$emit('lookup-zip')"
         />
@@ -92,7 +92,7 @@
         <q-btn
           color="secondary"
           outline
-          label="Suggest Frost Dates"
+          label="Suggest Frost Window"
           :loading="frostSuggestionPending"
           @click="$emit('suggest-frost-dates')"
         />
@@ -104,7 +104,7 @@
       >
         <div class="schedule-card__suggestion">
           <div class="schedule-card__suggestion-title">
-            Suggested Frost Dates
+            Suggested Frost Window
           </div>
           <div class="schedule-card__suggestion-dates">
             <span v-if="suggestedFrostDates.lastFrostDate">Last: {{ suggestedFrostDates.lastFrostDate }}</span>
@@ -120,7 +120,7 @@
             class="q-mt-sm"
             color="positive"
             unelevated
-            label="Apply Suggestion"
+            label="Use This Window"
             :disable="!suggestedFrostDates.lastFrostDate && !suggestedFrostDates.firstFrostDate"
             @click="$emit('apply-suggested-frost-dates')"
           />
@@ -139,7 +139,7 @@
           type="date"
           outlined
           dense
-          label="Planning Last Frost"
+          label="Season Last Frost"
           @update:model-value="$emit('update:lastFrostDate', $event)"
         />
       </div>
@@ -150,7 +150,7 @@
           type="date"
           outlined
           dense
-          label="Planning First Frost"
+          label="Season First Frost"
           @update:model-value="$emit('update:firstFrostDate', $event)"
         />
       </div>

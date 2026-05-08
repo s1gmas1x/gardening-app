@@ -45,7 +45,7 @@
         emit-value
         map-options
         options-dense
-        label="Type"
+        label="Growing Zone Type"
         class="bed-editor__type-select"
         @update:model-value="$emit('update-type', $event)"
       />
@@ -58,7 +58,7 @@
           step="0.5"
           dense
           outlined
-          label="W"
+          label="Width"
           suffix="ft"
           class="bed-editor__field"
           @update:model-value="$emit('update-width', Number($event))"
@@ -71,7 +71,7 @@
           step="0.5"
           dense
           outlined
-          label="L"
+          label="Length"
           suffix="ft"
           class="bed-editor__field"
           @update:model-value="$emit('update-length', Number($event))"
@@ -86,7 +86,7 @@
           step="1"
           dense
           outlined
-          label="H"
+          label="Depth"
           suffix="in"
           class="bed-editor__field"
           @update:model-value="$emit('update-height', Number($event))"
@@ -94,10 +94,10 @@
       </div>
 
       <div class="bed-editor__footer">
-        Grid: 1 ft, inches at high zoom
+        Grid reads in feet, then opens into inches as you zoom closer.
       </div>
 
-      <q-btn color="positive" unelevated icon="eco" label="Plant" @click="$emit('plant')" />
+      <q-btn color="positive" unelevated icon="eco" label="Plan This Zone" @click="$emit('plant')" />
     </q-card-section>
   </q-card>
 </template>

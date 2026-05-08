@@ -298,7 +298,7 @@
     />
 
     <div class="planner-hint">
-      <span>{{ interactionMode === 'pan' ? 'Drag to pan' : 'Scroll to zoom, drag beds to place them' }}</span>
+      <span>{{ interactionMode === 'pan' ? 'Drag to roam the garden map' : 'Scroll to zoom, then drag beds and pots into place' }}</span>
     </div>
   </div>
 </template>

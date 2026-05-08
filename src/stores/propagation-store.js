@@ -85,6 +85,108 @@ function normalizeAssignmentBatchId(assignment) {
   return ''
 }
 
+function normalizeCellIndexes(cellIndexes, cellCount) {
+  if (!Array.isArray(cellIndexes)) {
+    return []
+  }
+
+  return [...new Set(
+    cellIndexes
+      .map((index) => Math.round(Number(index)))
+      .filter((index) => Number.isInteger(index) && index >= 0 && index < cellCount),
+  )].sort((a, b) => a - b)
+}
+
+function getTrayGridDimensions(cellCount) {
+  if (cellCount === 50) {
+    return { columns: 10, rows: 5 }
+  }
+
+  if (cellCount === 72) {
+    return { columns: 12, rows: 6 }
+  }
+
+  const columns = Math.max(1, Math.ceil(Math.sqrt(cellCount)))
+  return {
+    columns,
+    rows: Math.max(1, Math.ceil(cellCount / columns)),
+  }
+}
+
+function collectUsedCellIndexes(assignments, ignoredAssignmentId = '') {
+  return new Set(
+    assignments
+      .filter((assignment) => assignment.id !== ignoredAssignmentId)
+      .flatMap((assignment) => Array.isArray(assignment.cellIndexes) ? assignment.cellIndexes : []),
+  )
+}
+
+function allocateTrayCellIndexes(assignments, trayCellCount, requestedCellCount, ignoredAssignmentId = '') {
+  const usedIndexes = collectUsedCellIndexes(assignments, ignoredAssignmentId)
+  const availableIndexes = []
+
+  for (let index = 0; index < trayCellCount; index += 1) {
+    if (!usedIndexes.has(index)) {
+      availableIndexes.push(index)
+    }
+  }
+
+  return availableIndexes.slice(0, requestedCellCount)
+}
+
+function formatCellIndexLabel(cellIndexes, trayCellCount) {
+  if (!cellIndexes.length) {
+    return ''
+  }
+
+  const { columns } = getTrayGridDimensions(trayCellCount)
+  return cellIndexes
+    .map((index) => {
+      const rowLabel = String.fromCharCode(65 + Math.floor(index / columns))
+      const columnLabel = String((index % columns) + 1).padStart(2, '0')
+      return `${rowLabel}${columnLabel}`
+    })
+    .join(', ')
+}
+
+function normalizeAssignmentsForTrays(assignments, trays) {
+  if (!Array.isArray(assignments)) {
+    return []
+  }
+
+  const trayCellCountById = new Map(
+    trays.map((tray) => [tray.id, tray.cellCount]),
+  )
+  const normalizedAssignments = []
+
+  assignments
+    .filter((assignment) => assignment && typeof assignment.trayId === 'string' && normalizeAssignmentBatchId(assignment))
+    .forEach((assignment, index) => {
+      const trayCellCount = trayCellCountById.get(assignment.trayId) ?? 72
+      const normalizedCellCount = Math.max(1, Math.round(Number(assignment.cellCount) || 1))
+      let cellIndexes = normalizeCellIndexes(assignment.cellIndexes, trayCellCount)
+
+      if (!cellIndexes.length) {
+        cellIndexes = allocateTrayCellIndexes(
+          normalizedAssignments.filter((item) => item.trayId === assignment.trayId),
+          trayCellCount,
+          normalizedCellCount,
+        )
+      }
+
+      normalizedAssignments.push({
+        id: assignment.id ?? `tray-assignment-${index}`,
+        trayId: assignment.trayId,
+        batchId: normalizeAssignmentBatchId(assignment),
+        cellCount: Math.max(cellIndexes.length, normalizedCellCount),
+        cellIndexes,
+        status: normalizeAssignmentStatus(assignment.status),
+      })
+    })
+
+  return normalizedAssignments
+}
+
 function hydrateState(snapshot) {
   const defaults = createDefaultState()
   const source = snapshot?.state
@@ -103,17 +205,15 @@ function hydrateState(snapshot) {
         status: normalizeTrayStatus(tray.status),
       }))
       : [],
-    trayAssignments: Array.isArray(source.trayAssignments)
-      ? source.trayAssignments
-        .filter((assignment) => assignment && typeof assignment.trayId === 'string' && normalizeAssignmentBatchId(assignment))
-        .map((assignment, index) => ({
-          id: assignment.id ?? `tray-assignment-${index}`,
-          trayId: assignment.trayId,
-          batchId: normalizeAssignmentBatchId(assignment),
-          cellCount: Math.max(1, Math.round(Number(assignment.cellCount) || 1)),
-          status: normalizeAssignmentStatus(assignment.status),
+    trayAssignments: normalizeAssignmentsForTrays(
+      source.trayAssignments,
+      Array.isArray(source.trays)
+        ? source.trays.map((tray, index) => ({
+          id: tray.id ?? `tray-${index}`,
+          cellCount: Math.max(1, Math.round(Number(tray.cellCount) || 72)),
         }))
-      : [],
+        : [],
+    ),
   }
 }
 
@@ -156,10 +256,13 @@ export const usePropagationStore = defineStore('propagation', {
               areaId: cropPlan?.areaId ?? '',
               plantId: cropPlan?.plantId ?? '',
               plantName: plant?.name ?? cropPlan?.plantId ?? 'Unknown',
+              plantColor: plant?.color ?? '#4b5f49',
+              plantShortLabel: plant?.shortLabel ?? plant?.name?.slice(0, 2)?.toUpperCase() ?? '?',
               areaName: area?.name ?? cropPlan?.areaId ?? 'Unknown Area',
               transplantDate: batch?.transplantDate ?? '',
               startIndoorDate: batch?.startIndoorDate ?? '',
               statusLabel: ASSIGNMENT_STATUS_OPTIONS.find((option) => option.value === assignment.status)?.label ?? 'Planned',
+              cellLabel: formatCellIndexLabel(assignment.cellIndexes ?? [], tray.cellCount),
             }
           })
 
@@ -172,9 +275,22 @@ export const usePropagationStore = defineStore('propagation', {
         return {
           ...tray,
           statusLabel: TRAY_STATUS_OPTIONS.find((option) => option.value === tray.status)?.label ?? 'Planned',
+          grid: getTrayGridDimensions(tray.cellCount),
           usedCells,
           openCells: Math.max(tray.cellCount - usedCells, 0),
           assignments,
+          cells: Array.from({ length: tray.cellCount }, (_, index) => {
+            const assignment = assignments.find((item) => item.cellIndexes?.includes(index))
+            return {
+              index,
+              label: formatCellIndexLabel([index], tray.cellCount),
+              assignmentId: assignment?.id ?? '',
+              plantName: assignment?.plantName ?? '',
+              plantColor: assignment?.plantColor ?? '',
+              plantShortLabel: assignment?.plantShortLabel ?? '',
+              status: assignment?.status ?? '',
+            }
+          }),
           transplantStartDate: transplantDates[0] ?? '',
           transplantEndDate: transplantDates[transplantDates.length - 1] ?? '',
         }
@@ -314,16 +430,46 @@ export const usePropagationStore = defineStore('propagation', {
         return
       }
 
+      const tray = this.trays.find((item) => item.id === normalizedTrayId)
+
+      if (!tray) {
+        return
+      }
+
       const existingAssignment = this.trayAssignments.find((assignment) => (
         assignment.batchId === normalizedBatchId && assignment.trayId === normalizedTrayId
       ))
 
       if (existingAssignment) {
+        const nextCellIndexes = [
+          ...(existingAssignment.cellIndexes ?? []),
+          ...allocateTrayCellIndexes(
+            this.trayAssignments.filter((assignment) => assignment.trayId === normalizedTrayId),
+            tray.cellCount,
+            normalizedCellCount,
+            existingAssignment.id,
+          ),
+        ]
+
         this.trayAssignments = this.trayAssignments.map((assignment) => (
           assignment.id === existingAssignment.id
-            ? { ...assignment, cellCount: assignment.cellCount + normalizedCellCount }
+            ? {
+                ...assignment,
+                cellIndexes: nextCellIndexes,
+                cellCount: nextCellIndexes.length,
+              }
             : assignment
         ))
+        return
+      }
+
+      const cellIndexes = allocateTrayCellIndexes(
+        this.trayAssignments.filter((assignment) => assignment.trayId === normalizedTrayId),
+        tray.cellCount,
+        normalizedCellCount,
+      )
+
+      if (!cellIndexes.length) {
         return
       }
 
@@ -333,7 +479,8 @@ export const usePropagationStore = defineStore('propagation', {
           id: `tray-assignment-${Date.now()}-${this.trayAssignments.length + 1}`,
           trayId: normalizedTrayId,
           batchId: normalizedBatchId,
-          cellCount: normalizedCellCount,
+          cellCount: cellIndexes.length,
+          cellIndexes,
           status: 'planned',
         },
       ]

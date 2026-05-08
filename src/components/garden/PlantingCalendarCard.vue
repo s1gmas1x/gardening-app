@@ -2,9 +2,9 @@
   <q-card flat bordered class="calendar-card">
     <q-card-section class="row items-start justify-between q-col-gutter-md">
       <div class="col">
-        <div class="text-subtitle1 text-weight-medium">Planting Calendar</div>
+        <div class="text-subtitle1 text-weight-medium">Season Calendar</div>
         <div class="text-caption text-grey-7">
-          Tasks grouped by their scheduled due dates.
+          A month-by-month view of the garden's upcoming work.
         </div>
       </div>
 
@@ -16,7 +16,7 @@
     <q-separator />
 
     <q-card-section v-if="!months.length" class="text-caption text-grey-7">
-      Add frost dates and crop plans to generate scheduled planting windows.
+      Add frost timing and crop plans to bring the season calendar to life.
     </q-card-section>
 
     <div v-else class="calendar-card__months">
@@ -68,7 +68,7 @@ defineEmits(['focus-task'])
 
 function formatTaskDate(dateString) {
   if (!dateString) {
-    return 'No date'
+    return 'Undated'
   }
 
   return new Intl.DateTimeFormat('en-US', {

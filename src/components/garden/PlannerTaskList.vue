@@ -2,9 +2,9 @@
   <q-card flat bordered class="task-card">
     <q-card-section class="row items-start justify-between q-col-gutter-md">
       <div class="col">
-        <div class="text-subtitle1 text-weight-medium">Planting Tasks</div>
+        <div class="text-subtitle1 text-weight-medium">Garden Rhythm</div>
         <div class="text-caption text-grey-7">
-          Tasks generated from the current crop plans and what is already placed in the garden.
+          Daily work generated from the current crop plans and what is already growing in the garden.
         </div>
       </div>
 
@@ -65,7 +65,7 @@
     </q-list>
 
     <q-card-section v-else class="text-caption text-grey-7">
-      Add crop plans and target quantities to generate planting tasks.
+      Add crop plans and target quantities to let the app sketch your next garden moves.
     </q-card-section>
   </q-card>
 </template>
