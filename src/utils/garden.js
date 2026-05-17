@@ -1,13 +1,14 @@
 import { BUILT_IN_PLANTS, getPlantById as getPlantDefinitionById } from './garden/plants'
 
 export const BASE_PIXELS_PER_FOOT = 48
-export const MIN_ZOOM = 0.5
+export const MIN_ZOOM = 0.25
 export const MAX_ZOOM = 4
 export const DEFAULT_ZOOM = 1
 export const ZOOM_STEP = 0.25
 export const GRID_PADDING = 48
 export const BED_SNAP_FEET = 0.5
 export const MIN_BED_SIZE_FEET = 1
+export const BED_PLACEMENT_GAP_FEET = 0.5
 export const BED_TYPE_OPTIONS = [
   { label: 'Regular Bed', value: 'regular' },
   { label: 'Raised Bed', value: 'raised' },
@@ -214,21 +215,132 @@ export function createDefaultBed(index, garden, type = 'regular', sequenceNumber
   const normalizedType = normalizeBedType(type)
   const widthFeet = Math.min(normalizedType === 'pot' ? 2 : 4, garden.widthFeet)
   const heightFeet = Math.min(normalizedType === 'pot' ? 2 : 8, garden.lengthFeet)
-  const offset = index * BED_SNAP_FEET
   const typeMeta = getBedTypeMeta(normalizedType)
-
-  return clampBedToGarden({
+  const seededBed = {
     id: `bed-${Date.now()}-${index}`,
     name: buildAutoAreaName(normalizedType, sequenceNumber),
-    xFeet: offset,
-    yFeet: offset,
+    xFeet: 0,
+    yFeet: 0,
     widthFeet,
     heightFeet,
     type: normalizedType,
     bedHeightInches: typeMeta.defaultHeightInches,
     rotationDegrees: 0,
     color: typeMeta.fill,
+  }
+  const placement = findNextBedPlacement([], seededBed, garden)
+
+  return clampBedToGarden({
+    ...seededBed,
+    ...placement,
   }, garden)
+}
+
+function getBedBounds(bed) {
+  const footprint = getBedFootprint(bed)
+
+  return {
+    xFeet: Number(bed.xFeet) || 0,
+    yFeet: Number(bed.yFeet) || 0,
+    widthFeet: footprint.widthFeet,
+    heightFeet: footprint.heightFeet,
+  }
+}
+
+function bedsOverlap(a, b, gapFeet = 0) {
+  return (
+    a.xFeet < b.xFeet + b.widthFeet + gapFeet
+    && a.xFeet + a.widthFeet + gapFeet > b.xFeet
+    && a.yFeet < b.yFeet + b.heightFeet + gapFeet
+    && a.yFeet + a.heightFeet + gapFeet > b.yFeet
+  )
+}
+
+function canPlaceBedAt(existingBeds, candidate, garden) {
+  const footprint = getBedFootprint(candidate)
+  const maxX = Math.max(garden.widthFeet - footprint.widthFeet, 0)
+  const maxY = Math.max(garden.lengthFeet - footprint.heightFeet, 0)
+
+  if (candidate.xFeet < 0 || candidate.yFeet < 0 || candidate.xFeet > maxX || candidate.yFeet > maxY) {
+    return false
+  }
+
+  const candidateBounds = getBedBounds(candidate)
+  return !existingBeds.some((bed) => bedsOverlap(candidateBounds, getBedBounds(bed)))
+}
+
+export function findNextBedPlacement(existingBeds, nextBed, garden) {
+  const normalizedBeds = Array.isArray(existingBeds) ? existingBeds : []
+  const footprint = getBedFootprint(nextBed)
+  const maxX = Math.max(garden.widthFeet - footprint.widthFeet, 0)
+  const maxY = Math.max(garden.lengthFeet - footprint.heightFeet, 0)
+  const seedX = Math.min(BED_PLACEMENT_GAP_FEET, maxX)
+  const seedY = Math.min(BED_PLACEMENT_GAP_FEET, maxY)
+
+  if (!normalizedBeds.length) {
+    return {
+      xFeet: seedX,
+      yFeet: seedY,
+    }
+  }
+
+  const referenceBed = normalizedBeds[normalizedBeds.length - 1]
+  const referenceBounds = getBedBounds(referenceBed)
+  const preferredPlacements = [
+    {
+      xFeet: referenceBounds.xFeet + referenceBounds.widthFeet + BED_PLACEMENT_GAP_FEET,
+      yFeet: referenceBounds.yFeet,
+    },
+    {
+      xFeet: referenceBounds.xFeet,
+      yFeet: referenceBounds.yFeet + referenceBounds.heightFeet + BED_PLACEMENT_GAP_FEET,
+    },
+    {
+      xFeet: referenceBounds.xFeet - footprint.widthFeet - BED_PLACEMENT_GAP_FEET,
+      yFeet: referenceBounds.yFeet,
+    },
+    {
+      xFeet: referenceBounds.xFeet,
+      yFeet: referenceBounds.yFeet - footprint.heightFeet - BED_PLACEMENT_GAP_FEET,
+    },
+  ]
+
+  for (const placement of preferredPlacements) {
+    const candidate = {
+      ...nextBed,
+      xFeet: snapToIncrement(placement.xFeet),
+      yFeet: snapToIncrement(placement.yFeet),
+    }
+
+    if (canPlaceBedAt(normalizedBeds, candidate, garden)) {
+      return {
+        xFeet: candidate.xFeet,
+        yFeet: candidate.yFeet,
+      }
+    }
+  }
+
+  for (let yFeet = seedY; yFeet <= maxY; yFeet += BED_SNAP_FEET) {
+    for (let xFeet = seedX; xFeet <= maxX; xFeet += BED_SNAP_FEET) {
+      const candidate = {
+        ...nextBed,
+        xFeet: snapToIncrement(xFeet),
+        yFeet: snapToIncrement(yFeet),
+      }
+
+      if (canPlaceBedAt(normalizedBeds, candidate, garden)) {
+        return {
+          xFeet: candidate.xFeet,
+          yFeet: candidate.yFeet,
+        }
+      }
+    }
+  }
+
+  return {
+    xFeet: seedX,
+    yFeet: seedY,
+  }
 }
 
 export function clampBedToGarden(bed, garden) {
@@ -273,12 +385,11 @@ export function zoomAroundPoint(viewport, nextZoom, point) {
   }
 }
 
-export function buildGridLines(widthFeet, lengthFeet, includeMinorGrid) {
+export function buildGridLines(widthFeet, lengthFeet, minorStepFeet = null) {
   const widthPixels = feetToPixels(widthFeet)
   const heightPixels = feetToPixels(lengthFeet)
   const majorLines = []
   const minorLines = []
-  const inchStep = 1 / 12
 
   for (let xFeet = 0; xFeet <= widthFeet; xFeet += 1) {
     const x = feetToPixels(xFeet)
@@ -290,8 +401,8 @@ export function buildGridLines(widthFeet, lengthFeet, includeMinorGrid) {
     majorLines.push({ x1: 0, y1: y, x2: widthPixels, y2: y })
   }
 
-  if (includeMinorGrid) {
-    for (let xFeet = 0; xFeet <= widthFeet; xFeet += inchStep) {
+  if (minorStepFeet && minorStepFeet < 1) {
+    for (let xFeet = 0; xFeet <= widthFeet; xFeet += minorStepFeet) {
       if (Math.abs(xFeet - Math.round(xFeet)) < 0.0001) {
         continue
       }
@@ -300,7 +411,7 @@ export function buildGridLines(widthFeet, lengthFeet, includeMinorGrid) {
       minorLines.push({ x1: x, y1: 0, x2: x, y2: heightPixels })
     }
 
-    for (let yFeet = 0; yFeet <= lengthFeet; yFeet += inchStep) {
+    for (let yFeet = 0; yFeet <= lengthFeet; yFeet += minorStepFeet) {
       if (Math.abs(yFeet - Math.round(yFeet)) < 0.0001) {
         continue
       }
@@ -318,12 +429,11 @@ export function buildGridLines(widthFeet, lengthFeet, includeMinorGrid) {
   }
 }
 
-export function buildBedGridLines(widthFeet, heightFeet, includeMinorGrid) {
+export function buildBedGridLines(widthFeet, heightFeet, minorStepFeet = null) {
   const widthPixels = feetToPixels(widthFeet)
   const heightPixels = feetToPixels(heightFeet)
   const majorLines = []
   const minorLines = []
-  const inchStep = 1 / 12
 
   for (let xFeet = 1; xFeet < widthFeet; xFeet += 1) {
     const x = feetToPixels(xFeet)
@@ -335,8 +445,8 @@ export function buildBedGridLines(widthFeet, heightFeet, includeMinorGrid) {
     majorLines.push({ x1: 0, y1: y, x2: widthPixels, y2: y })
   }
 
-  if (includeMinorGrid) {
-    for (let xFeet = inchStep; xFeet < widthFeet; xFeet += inchStep) {
+  if (minorStepFeet && minorStepFeet < 1) {
+    for (let xFeet = minorStepFeet; xFeet < widthFeet; xFeet += minorStepFeet) {
       if (Math.abs(xFeet - Math.round(xFeet)) < 0.0001) {
         continue
       }
@@ -345,7 +455,7 @@ export function buildBedGridLines(widthFeet, heightFeet, includeMinorGrid) {
       minorLines.push({ x1: x, y1: 0, x2: x, y2: heightPixels })
     }
 
-    for (let yFeet = inchStep; yFeet < heightFeet; yFeet += inchStep) {
+    for (let yFeet = minorStepFeet; yFeet < heightFeet; yFeet += minorStepFeet) {
       if (Math.abs(yFeet - Math.round(yFeet)) < 0.0001) {
         continue
       }

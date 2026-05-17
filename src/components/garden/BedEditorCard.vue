@@ -3,6 +3,7 @@
     flat
     bordered
     class="bed-editor"
+    :class="{ 'bed-editor--sheet': sheetMode }"
     :style="styleObject"
     @pointerdown.stop
     @click.stop
@@ -97,7 +98,14 @@
         Grid reads in feet, then opens into inches as you zoom closer.
       </div>
 
-      <q-btn color="positive" unelevated icon="eco" label="Plan This Zone" @click="$emit('plant')" />
+      <q-btn
+        v-if="showPlantAction"
+        color="positive"
+        unelevated
+        icon="eco"
+        :label="plantActionLabel"
+        @click="$emit('plant')"
+      />
     </q-card-section>
   </q-card>
 </template>
@@ -123,6 +131,18 @@ defineProps({
   styleObject: {
     type: Object,
     default: () => ({}),
+  },
+  sheetMode: {
+    type: Boolean,
+    default: false,
+  },
+  showPlantAction: {
+    type: Boolean,
+    default: true,
+  },
+  plantActionLabel: {
+    type: String,
+    default: 'Plan This Zone',
   },
 })
 
@@ -210,5 +230,29 @@ defineEmits([
   font-size: 11px;
   color: #6f756b;
   padding-top: 2px;
+}
+
+.bed-editor--sheet {
+  position: static;
+  width: 100%;
+  border-radius: 26px 26px 0 0;
+  background: rgba(255, 252, 244, 0.98);
+  box-shadow: none;
+  border-bottom: 0;
+}
+
+.bed-editor--sheet .bed-editor__section {
+  padding: 18px 16px 22px;
+  gap: 14px;
+}
+
+@media (max-width: 680px) {
+  .bed-editor__stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bed-editor--sheet .bed-editor__stats {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

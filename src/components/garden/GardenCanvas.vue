@@ -2,7 +2,10 @@
   <div
     ref="viewportRef"
     class="planner-viewport"
-    :class="{ 'planner-viewport--panning': interactionMode === 'pan' }"
+    :class="{
+      'planner-viewport--panning': activeTool === 'move' && pointerState.mode === 'pan',
+      'planner-viewport--mobile-capture': mobileCaptureMode,
+    }"
     :style="{ touchAction: viewportTouchAction }"
     @wheel.prevent="handleWheel"
     @pointerdown="handleViewportPointerDown"
@@ -37,6 +40,101 @@
         />
 
         <g
+          v-if="placementPreview"
+          class="bed-group bed-group--preview"
+          :transform="`translate(${feetToPixels(placementPreview.xFeet)} ${feetToPixels(placementPreview.yFeet)})`"
+        >
+          <g v-if="isEntranceArea(placementPreview)" class="entrance-markers entrance-markers--preview">
+            <circle
+              class="entrance-marker entrance-marker--preview"
+              :cx="getEntranceMarkerStartX(placementPreview)"
+              :cy="getEntranceMarkerStartY(placementPreview)"
+              :r="getEntranceMarkerRadius()"
+            />
+            <circle
+              class="entrance-marker entrance-marker--preview"
+              :cx="getEntranceMarkerEndX(placementPreview)"
+              :cy="getEntranceMarkerEndY(placementPreview)"
+              :r="getEntranceMarkerRadius()"
+            />
+            <line
+              class="entrance-arrow-line entrance-arrow-line--preview"
+              :x1="getEntranceArrowBaseX(placementPreview)"
+              :y1="getEntranceArrowBaseY(placementPreview)"
+              :x2="getEntranceArrowTipX(placementPreview)"
+              :y2="getEntranceArrowTipY(placementPreview)"
+            />
+            <path
+              class="entrance-arrow-head entrance-arrow-head--preview"
+              :d="getEntranceArrowHeadPath(placementPreview)"
+            />
+          </g>
+          <g v-else-if="isLineArea(placementPreview)" class="line-markers line-markers--preview">
+            <line
+              class="line-area"
+              :x1="getLineStartX(placementPreview)"
+              :y1="getLineStartY(placementPreview)"
+              :x2="getLineEndX(placementPreview)"
+              :y2="getLineEndY(placementPreview)"
+            />
+            <circle
+              class="line-marker line-marker--preview"
+              :cx="getLineStartX(placementPreview)"
+              :cy="getLineStartY(placementPreview)"
+              :r="getLineMarkerRadius()"
+            />
+            <circle
+              class="line-marker line-marker--preview"
+              :cx="getLineEndX(placementPreview)"
+              :cy="getLineEndY(placementPreview)"
+              :r="getLineMarkerRadius()"
+            />
+          </g>
+          <g v-else :transform="getBedRenderTransform(placementPreview)">
+            <ellipse
+              v-if="placementPreview.type === 'pot'"
+              class="bed-shape bed-shape--preview"
+              :cx="feetToPixels(placementPreview.widthFeet) / 2"
+              :cy="feetToPixels(placementPreview.heightFeet) / 2"
+              :rx="feetToPixels(placementPreview.widthFeet) / 2"
+              :ry="feetToPixels(placementPreview.heightFeet) / 2"
+              :fill="getBedTypeMeta(placementPreview.type).fill"
+              :stroke="getBedTypeMeta(placementPreview.type).stroke"
+            />
+            <rect
+              v-else
+              class="bed-shape bed-shape--preview"
+              :class="placementPreview.type === 'raised' ? 'bed-shape--raised' : 'bed-shape--regular'"
+              :x="0"
+              :y="0"
+              :width="feetToPixels(placementPreview.widthFeet)"
+              :height="feetToPixels(placementPreview.heightFeet)"
+              :rx="placementPreview.type === 'raised' ? 10 : 6"
+              :fill="getBedTypeMeta(placementPreview.type).fill"
+              :stroke="getBedTypeMeta(placementPreview.type).stroke"
+            />
+
+            <rect
+              v-if="placementPreview.type === 'raised'"
+              class="bed-rim bed-rim--preview"
+              :x="8"
+              :y="8"
+              :width="Math.max(feetToPixels(placementPreview.widthFeet) - 16, 0)"
+              :height="Math.max(feetToPixels(placementPreview.heightFeet) - 16, 0)"
+              rx="8"
+            />
+          </g>
+
+          <text
+            :x="getBedLabelX(placementPreview)"
+            :y="getBedLabelY(placementPreview)"
+            class="bed-label bed-label--centered bed-label--preview"
+          >
+            {{ placementPreview.name }}
+          </text>
+        </g>
+
+        <g
           v-for="bed in beds"
           :key="bed.id"
           class="bed-group"
@@ -47,9 +145,71 @@
           :transform="`translate(${feetToPixels(bed.xFeet)} ${feetToPixels(bed.yFeet)})`"
           @pointerdown.stop="handleBedPointerDown($event, bed.id)"
         >
-          <g :transform="getBedRenderTransform(bed)">
+          <g v-if="isEntranceArea(bed)" class="entrance-markers">
+            <rect
+              class="entrance-hitbox"
+              :x="0"
+              :y="0"
+              :width="feetToPixels(getBedFootprint(bed).widthFeet)"
+              :height="feetToPixels(getBedFootprint(bed).heightFeet)"
+              rx="8"
+            />
+            <circle
+              class="entrance-marker"
+              :cx="getEntranceMarkerStartX(bed)"
+              :cy="getEntranceMarkerStartY(bed)"
+              :r="getEntranceMarkerRadius()"
+            />
+            <circle
+              class="entrance-marker"
+              :cx="getEntranceMarkerEndX(bed)"
+              :cy="getEntranceMarkerEndY(bed)"
+              :r="getEntranceMarkerRadius()"
+            />
+            <line
+              class="entrance-arrow-line"
+              :x1="getEntranceArrowBaseX(bed)"
+              :y1="getEntranceArrowBaseY(bed)"
+              :x2="getEntranceArrowTipX(bed)"
+              :y2="getEntranceArrowTipY(bed)"
+            />
+            <path
+              class="entrance-arrow-head"
+              :d="getEntranceArrowHeadPath(bed)"
+            />
+          </g>
+          <g v-else-if="isLineArea(bed)" class="line-markers">
+            <rect
+              class="line-hitbox"
+              :x="0"
+              :y="0"
+              :width="feetToPixels(getBedFootprint(bed).widthFeet)"
+              :height="feetToPixels(getBedFootprint(bed).heightFeet)"
+              rx="8"
+            />
+            <line
+              class="line-area"
+              :x1="getLineStartX(bed)"
+              :y1="getLineStartY(bed)"
+              :x2="getLineEndX(bed)"
+              :y2="getLineEndY(bed)"
+            />
+            <circle
+              class="line-marker"
+              :cx="getLineStartX(bed)"
+              :cy="getLineStartY(bed)"
+              :r="getLineMarkerRadius()"
+            />
+            <circle
+              class="line-marker"
+              :cx="getLineEndX(bed)"
+              :cy="getLineEndY(bed)"
+              :r="getLineMarkerRadius()"
+            />
+          </g>
+          <g v-else :transform="getBedRenderTransform(bed)">
             <defs>
-              <clipPath :id="getBedClipPathId(bed)">
+              <clipPath v-if="!isEntranceArea(bed)" :id="getBedClipPathId(bed)">
                 <ellipse
                   v-if="bed.type === 'pot'"
                   :cx="feetToPixels(bed.widthFeet) / 2"
@@ -101,7 +261,7 @@
               rx="8"
             />
 
-            <g :clip-path="`url(#${getBedClipPathId(bed)})`">
+            <g v-if="!isEntranceArea(bed) && !isLineArea(bed)" :clip-path="`url(#${getBedClipPathId(bed)})`">
               <line
                 v-for="line in getBedGrid(bed).minorLines"
                 :key="`bed-minor-grid-${bed.id}-${line.x1}-${line.y1}-${line.x2}-${line.y2}`"
@@ -177,7 +337,7 @@
               />
             </g>
 
-            <g v-if="getPlantingSummary(bed).length" class="bed-summary">
+            <g v-if="!isEntranceArea(bed) && !isLineArea(bed) && getPlantingSummary(bed).length" class="bed-summary">
               <rect
                 class="bed-summary__panel"
                 :x="getBedSummaryX(bed)"
@@ -219,23 +379,178 @@
       </g>
     </svg>
 
-    <BedEditorCard
-      v-if="selectedBed"
-      :selected-bed="selectedBed"
-      :supports-selected-bed-height="supportsSelectedBedHeight"
-      :type-label="getBedTypeMeta(selectedBed.type).label"
-      :bed-type-select-options="bedTypeSelectOptions"
-      :style-object="selectedBedMenuStyle"
-      @update-name="gardenStore.updateBed(selectedBed.id, { name: $event })"
-      @update-type="gardenStore.updateBed(selectedBed.id, { type: $event })"
-      @update-width="gardenStore.updateBed(selectedBed.id, { widthFeet: $event })"
-      @update-length="gardenStore.updateBed(selectedBed.id, { heightFeet: $event })"
-      @update-height="gardenStore.updateBed(selectedBed.id, { bedHeightInches: $event })"
-      @rotate="rotateSelectedBed"
-      @close="gardenStore.clearSelection"
-      @delete="gardenStore.removeSelectedBed"
-      @plant="openPlantingDialog"
-    />
+    <div
+      v-if="selectedBed && !placementPreview"
+      class="bed-context-menu"
+      :class="{ 'bed-context-menu--mobile': mobileCaptureMode }"
+      :style="selectedBedMenuStyle"
+      @pointerdown.stop
+      @click.stop
+    >
+      <q-btn
+        dense
+        no-caps
+        rounded
+        unelevated
+        color="white"
+        text-color="grey-8"
+        class="bed-context-menu__dimension"
+        :label="selectedBedDimensionLabel"
+        @click="isQuickMeasureOpen = true"
+      >
+        <q-tooltip>Quick edit dimensions</q-tooltip>
+      </q-btn>
+      <q-btn
+        round
+        dense
+        unelevated
+        size="12px"
+        icon="open_with"
+        :color="activeTool === 'move' ? 'positive' : 'white'"
+        :text-color="activeTool === 'move' ? 'white' : 'grey-8'"
+        @click="emit('change-tool', 'move')"
+      >
+        <q-tooltip>Move zone</q-tooltip>
+      </q-btn>
+      <q-btn
+        round
+        dense
+        unelevated
+        size="12px"
+        icon="zoom_out_map"
+        :color="activeTool === 'resize' ? 'positive' : 'white'"
+        :text-color="activeTool === 'resize' ? 'white' : 'grey-8'"
+        @click="emit('change-tool', 'resize')"
+      >
+        <q-tooltip>Resize zone</q-tooltip>
+      </q-btn>
+      <q-btn
+        round
+        dense
+        unelevated
+        size="12px"
+        icon="rotate_90_degrees_cw"
+        :color="activeTool === 'rotate' ? 'positive' : 'white'"
+        :text-color="activeTool === 'rotate' ? 'white' : 'grey-8'"
+        @click="rotateSelectedBed()"
+      >
+        <q-tooltip>Rotate zone</q-tooltip>
+      </q-btn>
+      <q-btn
+        v-if="supportsPlanting"
+        round
+        dense
+        unelevated
+        size="12px"
+        icon="eco"
+        :color="activeTool === 'plant' ? 'positive' : 'white'"
+        :text-color="activeTool === 'plant' ? 'white' : 'grey-8'"
+        @click="openPlantingFromTool()"
+      >
+        <q-tooltip>Plant this zone</q-tooltip>
+      </q-btn>
+      <q-btn
+        round
+        dense
+        unelevated
+        size="12px"
+        icon="tune"
+        color="white"
+        text-color="grey-8"
+        @click="isBedDetailsOpen = true"
+      >
+        <q-tooltip>Zone details</q-tooltip>
+      </q-btn>
+      <q-btn
+        round
+        dense
+        unelevated
+        size="12px"
+        icon="delete"
+        color="negative"
+        text-color="white"
+        @click="gardenStore.removeSelectedBed()"
+      >
+        <q-tooltip>Delete zone</q-tooltip>
+      </q-btn>
+    </div>
+
+    <div
+      v-if="selectedBed && pointerState.mode === 'resize'"
+      class="bed-dimension-readout"
+      :style="selectedBedDimensionStyle"
+    >
+      {{ selectedBedDimensionLabel }}
+    </div>
+
+    <q-dialog
+      v-model="isBedDetailsOpen"
+      :position="mobileCaptureMode ? 'bottom' : 'standard'"
+    >
+      <BedEditorCard
+        v-if="selectedBed"
+        :selected-bed="selectedBed"
+        :supports-selected-bed-height="supportsSelectedBedHeight"
+        :type-label="getBedTypeMeta(selectedBed.type).label"
+        :bed-type-select-options="bedTypeSelectOptions"
+        :sheet-mode="mobileCaptureMode"
+        :show-plant-action="supportsPlanting"
+        :plant-action-label="plantActionLabel"
+        @update-name="gardenStore.updateBed(selectedBed.id, { name: $event })"
+        @update-type="gardenStore.updateBed(selectedBed.id, { type: $event })"
+        @update-width="gardenStore.updateBed(selectedBed.id, { widthFeet: $event })"
+        @update-length="gardenStore.updateBed(selectedBed.id, { heightFeet: $event })"
+        @update-height="gardenStore.updateBed(selectedBed.id, { bedHeightInches: $event })"
+        @rotate="rotateSelectedBed"
+        @close="isBedDetailsOpen = false"
+        @delete="gardenStore.removeSelectedBed"
+        @plant="openPlantingDialog"
+      />
+    </q-dialog>
+
+    <q-dialog
+      v-model="isQuickMeasureOpen"
+      :position="mobileCaptureMode ? 'bottom' : 'standard'"
+    >
+      <q-card class="dimension-quick-edit" :class="{ 'dimension-quick-edit--mobile': mobileCaptureMode }">
+        <q-card-section class="dimension-quick-edit__header">
+          <div>
+            <div class="text-overline text-positive">Zone Dimensions</div>
+            <div class="text-subtitle2 text-weight-medium">{{ selectedBed?.name }}</div>
+          </div>
+
+          <q-btn flat round dense icon="close" @click="isQuickMeasureOpen = false" />
+        </q-card-section>
+
+        <q-card-section class="dimension-quick-edit__body">
+          <q-input
+            v-model.number="dimensionDraft.widthFeet"
+            type="number"
+            min="1"
+            step="0.25"
+            outlined
+            dense
+            label="Width"
+            suffix="ft"
+          />
+          <q-input
+            v-model.number="dimensionDraft.heightFeet"
+            type="number"
+            min="1"
+            step="0.25"
+            outlined
+            dense
+            label="Length"
+            suffix="ft"
+          />
+        </q-card-section>
+
+        <q-card-actions align="right">
+          <q-btn flat label="Cancel" @click="isQuickMeasureOpen = false" />
+          <q-btn color="positive" unelevated label="Apply" @click="applyQuickDimensions" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
 
     <PlantingDialog
       :model-value="isPlantingDialogOpen"
@@ -297,8 +612,8 @@
       @close="closePlantingDialog"
     />
 
-    <div class="planner-hint">
-      <span>{{ interactionMode === 'pan' ? 'Drag to roam the garden map' : 'Scroll to zoom, then drag beds and pots into place' }}</span>
+    <div class="planner-hint" :class="{ 'planner-hint--mobile': mobileCaptureMode }">
+      <span>{{ toolHint }}</span>
     </div>
   </div>
 </template>
@@ -343,14 +658,30 @@ const props = defineProps({
     type: String,
     default: 'plan',
   },
+  mobileCaptureMode: {
+    type: Boolean,
+    default: false,
+  },
+  activeTool: {
+    type: String,
+    default: 'move',
+  },
+  gridScale: {
+    type: String,
+    default: 'one_foot',
+  },
+  placementPreview: {
+    type: Object,
+    default: null,
+  },
 })
 
-const emit = defineEmits(['finish-guided-transplant', 'cancel-guided-transplant'])
+const emit = defineEmits(['finish-guided-transplant', 'cancel-guided-transplant', 'change-tool', 'request-measurement', 'update-placement-preview'])
 
 const gardenStore = useGardenStore()
 const plantStore = usePlantStore()
 const planningStore = usePlanningStore()
-const { beds, gardenDimensions, interactionMode, selectedBed, selectedBedId, viewport } = storeToRefs(gardenStore)
+const { beds, gardenDimensions, selectedBed, selectedBedId, viewport } = storeToRefs(gardenStore)
 const { defaultPlantId, plantOptions } = storeToRefs(plantStore)
 
 const viewportRef = ref(null)
@@ -373,6 +704,8 @@ const pointerState = reactive({
   startPanY: 0,
   startBedXFeet: 0,
   startBedYFeet: 0,
+  startBedWidthFeet: 0,
+  startBedHeightFeet: 0,
 })
 const touchPoints = reactive({})
 const touchGestureState = reactive({
@@ -411,10 +744,106 @@ const freeDragState = reactive({
   yFeet: 0,
 })
 const suppressGuidedTransplantCancel = ref(false)
+const isBedDetailsOpen = ref(false)
+const isQuickMeasureOpen = ref(false)
+const dimensionDraft = reactive({
+  widthFeet: 1,
+  heightFeet: 1,
+})
 
-const showMinorGrid = computed(() => viewport.value.zoom >= 3)
-const viewportTouchAction = computed(() => (interactionMode.value === 'pan' ? 'none' : 'pan-y'))
+const currentGridMinorStepFeet = computed(() => {
+  if (props.gridScale === 'three_in') {
+    if (viewport.value.zoom >= 2.6) {
+      return 0.25
+    }
+
+    if (viewport.value.zoom >= 1.4) {
+      return 0.5
+    }
+
+    return null
+  }
+
+  if (props.gridScale === 'six_in') {
+    return viewport.value.zoom >= 1.25 ? 0.5 : null
+  }
+
+  return null
+})
+const currentSnapIncrementFeet = computed(() => (
+  props.gridScale === 'three_in'
+    ? 0.25
+    : props.gridScale === 'six_in'
+      ? 0.5
+      : 1
+))
+const viewportTouchAction = computed(() => (props.activeTool === 'move' ? 'none' : 'pan-y'))
 const supportsSelectedBedHeight = computed(() => bedSupportsHeight(selectedBed.value?.type))
+const supportsPlanting = computed(() => props.workspaceMode !== 'layout')
+const plantActionLabel = computed(() => (
+  props.workspaceMode === 'current' ? 'Update Garden Planting' : 'Plan This Zone'
+))
+const selectedBedDimensionLabel = computed(() => (
+  selectedBed.value ? `${selectedBed.value.widthFeet.toFixed(1)} x ${selectedBed.value.heightFeet.toFixed(1)} ft` : ''
+))
+const toolHint = computed(() => {
+  if (props.workspaceMode === 'layout' && props.placementPreview) {
+    return 'Move the ghost object over the map, then place it when it lines up with the real garden'
+  }
+
+  if (props.workspaceMode === 'layout') {
+    if (props.activeTool === 'measure') {
+      return 'Measure the footprint, adjust scale, and place zones that match the real garden'
+    }
+
+    if (props.activeTool === 'resize') {
+      return 'Drag a selected zone edge to match the real bed size'
+    }
+
+    if (props.activeTool === 'rotate') {
+      return 'Quarter-turn the selected zone so it matches the real garden'
+    }
+
+    return 'Walk the garden, drop rough beds and pots, then refine their shape as you go'
+  }
+
+  if (props.activeTool === 'resize') {
+    return 'Drag a selected zone to resize its footprint'
+  }
+
+  if (props.activeTool === 'rotate') {
+    return 'Tap a zone to quarter-turn it'
+  }
+
+  if (props.activeTool === 'measure') {
+    return 'Tap the canvas to edit the garden footprint and grid scale'
+  }
+
+  if (props.activeTool === 'plant') {
+    return 'Tap a zone to open its planting plan'
+  }
+
+  return 'Drag zones to move them, or drag empty space to roam the map'
+})
+const selectedBedDimensionStyle = computed(() => {
+  if (!selectedBed.value) {
+    return {}
+  }
+
+  const edgePadding = 16
+  const { zoom, panX, panY } = viewport.value
+  const footprint = getBedFootprint(selectedBed.value)
+  const bedLeft = panX + feetToPixels(selectedBed.value.xFeet) * zoom
+  const bedTop = panY + feetToPixels(selectedBed.value.yFeet) * zoom
+  const bedWidth = feetToPixels(footprint.widthFeet) * zoom
+  const unclampedLeft = bedLeft + bedWidth / 2
+  const unclampedTop = bedTop - 16
+
+  return {
+    left: `${clamp(unclampedLeft, edgePadding, Math.max(viewportSize.width - edgePadding, edgePadding))}px`,
+    top: `${Math.max(unclampedTop, edgePadding)}px`,
+  }
+})
 const selectedPlant = computed(() => plantStore.getPlantById(selectedPlantId.value))
 const selectedBedCropPlans = computed(() => {
   if (!selectedBed.value?.id) {
@@ -473,7 +902,7 @@ const isGuidedTransplantActive = computed(() => (
 const grid = computed(() => buildGridLines(
   gardenDimensions.value.widthFeet,
   gardenDimensions.value.lengthFeet,
-  showMinorGrid.value,
+  currentGridMinorStepFeet.value,
 ))
 const plantingPoints = computed(() => {
   if (!selectedBed.value || !selectedPlantId.value) {
@@ -614,6 +1043,8 @@ const selectedBedMenuStyle = computed(() => {
 
 watch(selectedBed, (nextBed) => {
   if (!nextBed) {
+    isBedDetailsOpen.value = false
+    isQuickMeasureOpen.value = false
     isPlantingDialogOpen.value = false
     return
   }
@@ -621,6 +1052,9 @@ watch(selectedBed, (nextBed) => {
   if (!plantStore.getPlantById(selectedPlantId.value)) {
     selectedPlantId.value = defaultPlantId.value
   }
+
+  dimensionDraft.widthFeet = nextBed.widthFeet
+  dimensionDraft.heightFeet = nextBed.heightFeet
 })
 
 watch(defaultPlantId, (nextDefaultPlantId) => {
@@ -674,7 +1108,7 @@ watch(
 )
 
 function getBedGrid(bed) {
-  return buildBedGridLines(bed.widthFeet, bed.heightFeet, showMinorGrid.value)
+  return buildBedGridLines(bed.widthFeet, bed.heightFeet, currentGridMinorStepFeet.value)
 }
 
 function getBedPlantings(bed) {
@@ -802,6 +1236,210 @@ function getBedLabelX(bed) {
   return feetToPixels(footprint.widthFeet) / 2
 }
 
+function isEntranceArea(area) {
+  return area?.renderKind === 'entrance' || area?.value === 'entrance' || /^Entrance\b/i.test(area?.name ?? '')
+}
+
+function isLineArea(area) {
+  return area?.renderKind === 'line' || /^Fence\b/i.test(area?.name ?? '') || /^Wall\b/i.test(area?.name ?? '')
+}
+
+function getEntranceMarkerRadius() {
+  return 7
+}
+
+function getLineMarkerRadius() {
+  return 5
+}
+
+function getEntranceRenderEdge(area) {
+  if (area?.borderEdge) {
+    return area.borderEdge
+  }
+
+  const footprint = getBedFootprint(area)
+  const nearTop = Math.abs(area.yFeet) <= 0.5
+  const nearBottom = Math.abs((area.yFeet + footprint.heightFeet) - gardenDimensions.value.lengthFeet) <= 0.5
+  const nearLeft = Math.abs(area.xFeet) <= 0.5
+  const nearRight = Math.abs((area.xFeet + footprint.widthFeet) - gardenDimensions.value.widthFeet) <= 0.5
+
+  if (nearBottom) {
+    return 'bottom'
+  }
+
+  if (nearTop) {
+    return 'top'
+  }
+
+  if (nearLeft) {
+    return 'left'
+  }
+
+  if (nearRight) {
+    return 'right'
+  }
+
+  return 'bottom'
+}
+
+function getEntranceMarkerStartX(area) {
+  const footprint = getBedFootprint(area)
+  const edge = getEntranceRenderEdge(area)
+  const inset = getEntranceMarkerRadius() + 2
+
+  if (edge === 'top' || edge === 'bottom') {
+    return Math.min(inset, Math.max(feetToPixels(footprint.widthFeet) * 0.2, inset))
+  }
+
+  return edge === 'left' ? 0 : feetToPixels(footprint.widthFeet)
+}
+
+function getEntranceMarkerEndX(area) {
+  const footprint = getBedFootprint(area)
+  const edge = getEntranceRenderEdge(area)
+
+  if (edge === 'top' || edge === 'bottom') {
+    return Math.max(
+      feetToPixels(footprint.widthFeet) - getEntranceMarkerRadius() - 2,
+      getEntranceMarkerStartX(area),
+    )
+  }
+
+  return getEntranceMarkerStartX(area)
+}
+
+function getEntranceMarkerStartY(area) {
+  const footprint = getBedFootprint(area)
+  const edge = getEntranceRenderEdge(area)
+  const inset = getEntranceMarkerRadius() + 2
+
+  if (edge === 'top' || edge === 'bottom') {
+    return edge === 'top' ? 0 : feetToPixels(footprint.heightFeet)
+  }
+
+  return Math.min(inset, Math.max(feetToPixels(footprint.heightFeet) * 0.2, inset))
+}
+
+function getEntranceMarkerEndY(area) {
+  const footprint = getBedFootprint(area)
+  const edge = getEntranceRenderEdge(area)
+
+  if (edge === 'top' || edge === 'bottom') {
+    return getEntranceMarkerStartY(area)
+  }
+
+  return Math.max(
+    feetToPixels(footprint.heightFeet) - getEntranceMarkerRadius() - 2,
+    getEntranceMarkerStartY(area),
+  )
+}
+
+function getEntranceArrowBaseX(area) {
+  const edge = getEntranceRenderEdge(area)
+
+  if (edge === 'left') {
+    return 0
+  }
+
+  if (edge === 'right') {
+    return feetToPixels(getBedFootprint(area).widthFeet)
+  }
+
+  return (getEntranceMarkerStartX(area) + getEntranceMarkerEndX(area)) / 2
+}
+
+function getEntranceArrowBaseY(area) {
+  const edge = getEntranceRenderEdge(area)
+
+  if (edge === 'top') {
+    return 0
+  }
+
+  if (edge === 'bottom') {
+    return feetToPixels(getBedFootprint(area).heightFeet)
+  }
+
+  return (getEntranceMarkerStartY(area) + getEntranceMarkerEndY(area)) / 2
+}
+
+function getEntranceArrowLength(area) {
+  const footprint = getBedFootprint(area)
+  return Math.max(16, Math.min(Math.max(feetToPixels(footprint.widthFeet), feetToPixels(footprint.heightFeet)) * 0.45, 24))
+}
+
+function getEntranceArrowTipX(area) {
+  const edge = getEntranceRenderEdge(area)
+  const baseX = getEntranceArrowBaseX(area)
+  const length = getEntranceArrowLength(area)
+
+  if (edge === 'left') {
+    return baseX + length
+  }
+
+  if (edge === 'right') {
+    return baseX - length
+  }
+
+  return baseX
+}
+
+function getEntranceArrowTipY(area) {
+  const edge = getEntranceRenderEdge(area)
+  const baseY = getEntranceArrowBaseY(area)
+  const length = getEntranceArrowLength(area)
+
+  if (edge === 'top') {
+    return baseY + length
+  }
+
+  if (edge === 'bottom') {
+    return baseY - length
+  }
+
+  return baseY
+}
+
+function getEntranceArrowHeadPath(area) {
+  const tipX = getEntranceArrowTipX(area)
+  const tipY = getEntranceArrowTipY(area)
+  const edge = getEntranceRenderEdge(area)
+  const size = 7
+
+  if (edge === 'top') {
+    return `M ${tipX} ${tipY} L ${tipX - size} ${tipY - size} L ${tipX + size} ${tipY - size} Z`
+  }
+
+  if (edge === 'bottom') {
+    return `M ${tipX} ${tipY} L ${tipX - size} ${tipY + size} L ${tipX + size} ${tipY + size} Z`
+  }
+
+  if (edge === 'left') {
+    return `M ${tipX} ${tipY} L ${tipX - size} ${tipY - size} L ${tipX - size} ${tipY + size} Z`
+  }
+
+  return `M ${tipX} ${tipY} L ${tipX + size} ${tipY - size} L ${tipX + size} ${tipY + size} Z`
+}
+
+function getLineStartX(area) {
+  const footprint = getBedFootprint(area)
+  return footprint.widthFeet >= footprint.heightFeet ? 0 : feetToPixels(footprint.widthFeet) / 2
+}
+
+function getLineStartY(area) {
+  const footprint = getBedFootprint(area)
+  return footprint.widthFeet >= footprint.heightFeet ? feetToPixels(footprint.heightFeet) / 2 : 0
+}
+
+function getLineEndX(area) {
+  const footprint = getBedFootprint(area)
+  return footprint.widthFeet >= footprint.heightFeet ? feetToPixels(footprint.widthFeet) : feetToPixels(footprint.widthFeet) / 2
+}
+
+function getLineEndY(area) {
+  const footprint = getBedFootprint(area)
+  return footprint.widthFeet >= footprint.heightFeet ? feetToPixels(footprint.heightFeet) / 2 : feetToPixels(footprint.heightFeet)
+}
+
 function getBedLabelY(bed) {
   const footprint = getBedFootprint(bed)
   const bedTopPixels = feetToPixels(bed.yFeet)
@@ -858,8 +1496,29 @@ function rotateSelectedBed() {
   })
 }
 
-function openPlantingDialog() {
+function openPlantingFromTool() {
+  if (!supportsPlanting.value) {
+    return
+  }
+
+  emit('change-tool', 'plant')
+  openPlantingDialog()
+}
+
+function applyQuickDimensions() {
   if (!selectedBed.value) {
+    return
+  }
+
+  gardenStore.updateBed(selectedBed.value.id, {
+    widthFeet: dimensionDraft.widthFeet,
+    heightFeet: dimensionDraft.heightFeet,
+  })
+  isQuickMeasureOpen.value = false
+}
+
+function openPlantingDialog() {
+  if (!selectedBed.value || !supportsPlanting.value) {
     return
   }
 
@@ -1397,6 +2056,15 @@ function getViewportPoint(event) {
   }
 }
 
+function getGardenFeetPoint(event) {
+  const point = getViewportPoint(event)
+
+  return {
+    xFeet: snapToIncrement(pixelsToFeet((point.x - viewport.value.panX) / viewport.value.zoom), currentSnapIncrementFeet.value),
+    yFeet: snapToIncrement(pixelsToFeet((point.y - viewport.value.panY) / viewport.value.zoom), currentSnapIncrementFeet.value),
+  }
+}
+
 function getActiveTouchPoints() {
   return Object.values(touchPoints)
 }
@@ -1518,6 +2186,14 @@ function handleWheel(event) {
   gardenStore.setViewportZoom(viewport.value.zoom + delta, point)
 }
 
+function updatePlacementPreviewFromEvent(event) {
+  if (!props.placementPreview) {
+    return
+  }
+
+  emit('update-placement-preview', getGardenFeetPoint(event))
+}
+
 function handleViewportPointerDown(event) {
   if (event.pointerType === 'touch') {
     syncTouchPoint(event)
@@ -1528,10 +2204,25 @@ function handleViewportPointerDown(event) {
     }
   }
 
-  if (interactionMode.value !== 'pan') {
-    if (event.pointerType !== 'touch') {
-      gardenStore.clearSelection()
+  if (props.placementPreview) {
+    updatePlacementPreviewFromEvent(event)
+
+    if (event.pointerType === 'touch') {
+      pointerState.mode = 'placement'
+      pointerState.pointerId = event.pointerId
+      viewportRef.value?.setPointerCapture(event.pointerId)
     }
+
+    return
+  }
+
+  if (props.activeTool === 'measure') {
+    emit('request-measurement')
+    return
+  }
+
+  if (props.activeTool !== 'move') {
+    gardenStore.clearSelection()
     return
   }
 
@@ -1554,24 +2245,57 @@ function handleBedPointerDown(event, bedId) {
     }
   }
 
-  gardenStore.setSelectedBed(bedId)
+  if (props.placementPreview) {
+    updatePlacementPreviewFromEvent(event)
 
-  if (interactionMode.value !== 'select') {
+    if (event.pointerType === 'touch') {
+      pointerState.mode = 'placement'
+      pointerState.pointerId = event.pointerId
+      viewportRef.value?.setPointerCapture(event.pointerId)
+    }
+
     return
   }
+
+  gardenStore.setSelectedBed(bedId)
 
   const bed = beds.value.find((item) => item.id === bedId)
   if (!bed) {
     return
   }
 
-  pointerState.mode = 'bed'
+  if (props.activeTool === 'rotate') {
+    rotateSelectedBed()
+    return
+  }
+
+  if (props.activeTool === 'plant') {
+    if (!supportsPlanting.value) {
+      return
+    }
+
+    openPlantingDialog()
+    return
+  }
+
+  if (props.activeTool === 'measure') {
+    emit('request-measurement')
+    return
+  }
+
+  if (props.activeTool !== 'move' && props.activeTool !== 'resize') {
+    return
+  }
+
+  pointerState.mode = props.activeTool === 'resize' ? 'resize' : 'bed'
   pointerState.pointerId = event.pointerId
   pointerState.bedId = bedId
   pointerState.startClientX = event.clientX
   pointerState.startClientY = event.clientY
   pointerState.startBedXFeet = bed.xFeet
   pointerState.startBedYFeet = bed.yFeet
+  pointerState.startBedWidthFeet = bed.widthFeet
+  pointerState.startBedHeightFeet = bed.heightFeet
   viewportRef.value?.setPointerCapture(event.pointerId)
 }
 
@@ -1581,6 +2305,16 @@ function handlePointerMove(event) {
 
     if (touchGestureState.mode === 'pinch') {
       updatePinchGesture()
+      return
+    }
+  }
+
+  if (props.placementPreview) {
+    if (event.pointerType !== 'touch' || pointerState.mode === 'placement' || pointerState.pointerId === event.pointerId) {
+      updatePlacementPreviewFromEvent(event)
+    }
+
+    if (pointerState.mode === 'placement' && pointerState.pointerId === event.pointerId) {
       return
     }
   }
@@ -1606,6 +2340,27 @@ function handlePointerMove(event) {
       pointerState.startBedXFeet + deltaX,
       pointerState.startBedYFeet + deltaY,
     )
+    return
+  }
+
+  if (pointerState.mode === 'resize' && pointerState.bedId) {
+    const bed = beds.value.find((item) => item.id === pointerState.bedId)
+
+    if (!bed) {
+      return
+    }
+
+    const nextPoint = getGardenFeetPoint(event)
+    const rotation = normalizeBedRotation(bed.rotationDegrees)
+    const footprintWidth = clamp(nextPoint.xFeet - bed.xFeet, 1, gardenDimensions.value.widthFeet - bed.xFeet)
+    const footprintHeight = clamp(nextPoint.yFeet - bed.yFeet, 1, gardenDimensions.value.lengthFeet - bed.yFeet)
+    const nextWidthFeet = rotation === 90 || rotation === 270 ? footprintHeight : footprintWidth
+    const nextHeightFeet = rotation === 90 || rotation === 270 ? footprintWidth : footprintHeight
+
+    gardenStore.updateBed(pointerState.bedId, {
+      widthFeet: nextWidthFeet,
+      heightFeet: nextHeightFeet,
+    })
   }
 }
 
@@ -1641,11 +2396,20 @@ function handlePointerUp(event) {
   cursor: grab;
 }
 
+.planner-viewport--mobile-capture {
+  min-height: clamp(70vh, 78vh, 90vh);
+  border-radius: 28px;
+}
+
 .planner-svg {
   width: 100%;
   height: 100%;
   min-height: 560px;
   display: block;
+}
+
+.planner-viewport--mobile-capture .planner-svg {
+  min-height: clamp(70vh, 78vh, 90vh);
 }
 
 .garden-surface {
@@ -1693,6 +2457,48 @@ function handlePointerUp(event) {
   stroke: rgba(255, 244, 229, 0.45);
   stroke-width: 2;
   vector-effect: non-scaling-stroke;
+}
+
+.entrance-hitbox {
+  fill: rgba(255, 255, 255, 0.001);
+}
+
+.line-hitbox {
+  fill: rgba(255, 255, 255, 0.001);
+}
+
+.entrance-marker {
+  fill: rgba(248, 251, 244, 0.98);
+  stroke: #203126;
+  stroke-width: 2.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.line-area,
+.line-marker {
+  stroke: #344d39;
+  stroke-width: 4;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.line-marker {
+  fill: rgba(248, 251, 244, 0.98);
+  stroke-width: 2.5;
+}
+
+.entrance-arrow-line,
+.entrance-arrow-head {
+  fill: none;
+  stroke: #203126;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.entrance-arrow-head {
+  fill: #f8fbf4;
 }
 
 .bed-grid-line {
@@ -1748,6 +2554,52 @@ function handlePointerUp(event) {
   stroke-width: 3;
 }
 
+.bed-group--selected .entrance-marker {
+  stroke: #d7f171;
+  stroke-width: 3;
+}
+
+.bed-group--selected .line-area,
+.bed-group--selected .line-marker {
+  stroke: #d7f171;
+}
+
+.bed-group--selected .entrance-arrow-line,
+.bed-group--selected .entrance-arrow-head {
+  stroke: #d7f171;
+}
+
+.bed-group--preview {
+  pointer-events: none;
+}
+
+.bed-shape--preview {
+  opacity: 0.45;
+  stroke-width: 2.5;
+  filter: drop-shadow(0 0 10px rgba(215, 241, 113, 0.45));
+}
+
+.entrance-marker--preview {
+  opacity: 0.72;
+  filter: drop-shadow(0 0 10px rgba(215, 241, 113, 0.45));
+}
+
+.line-markers--preview .line-area,
+.line-marker--preview {
+  opacity: 0.8;
+  filter: drop-shadow(0 0 10px rgba(215, 241, 113, 0.45));
+}
+
+.entrance-arrow-line--preview,
+.entrance-arrow-head--preview {
+  opacity: 0.8;
+  filter: drop-shadow(0 0 10px rgba(215, 241, 113, 0.45));
+}
+
+.bed-rim--preview {
+  stroke: rgba(255, 250, 239, 0.72);
+}
+
 .bed-label {
   fill: #2f402a;
   font-size: 16px;
@@ -1757,6 +2609,68 @@ function handlePointerUp(event) {
 
 .bed-label--centered {
   text-anchor: middle;
+}
+
+.bed-label--preview {
+  fill: rgba(36, 52, 31, 0.78);
+}
+
+.bed-context-menu {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 999px;
+  background: rgba(255, 252, 244, 0.92);
+  box-shadow: 0 14px 28px rgba(37, 51, 34, 0.16);
+  backdrop-filter: blur(14px);
+}
+
+.bed-context-menu--mobile {
+  max-width: calc(100% - 24px);
+  overflow-x: auto;
+}
+
+.bed-context-menu__dimension {
+  padding-inline: 8px;
+  font-weight: 700;
+}
+
+.bed-dimension-readout {
+  position: absolute;
+  z-index: 3;
+  transform: translate(-50%, -100%);
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(37, 51, 34, 0.92);
+  color: #f8f4e8;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  box-shadow: 0 10px 22px rgba(37, 51, 34, 0.18);
+}
+
+.dimension-quick-edit {
+  width: min(360px, 92vw);
+  border-radius: 22px;
+}
+
+.dimension-quick-edit--mobile {
+  width: 100vw;
+  border-radius: 26px 26px 0 0;
+}
+
+.dimension-quick-edit__header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dimension-quick-edit__body {
+  display: grid;
+  gap: 12px;
 }
 
 .bed-editor {
@@ -1988,6 +2902,14 @@ function handlePointerUp(event) {
   color: #4b5f49;
   font-size: 12px;
   backdrop-filter: blur(6px);
+}
+
+.planner-hint--mobile {
+  right: 50%;
+  bottom: 18px;
+  transform: translateX(50%);
+  max-width: calc(100% - 136px);
+  text-align: center;
 }
 
 @media (max-width: 900px) {

@@ -3,7 +3,11 @@
     flat
     bordered
     class="today-widget"
-    :class="{ 'today-widget--expanded': isExpanded }"
+    :class="{
+      'today-widget--expanded': isExpanded,
+      'today-widget--map': mapMode,
+      [`today-widget--${tone}`]: true,
+    }"
     role="button"
     tabindex="0"
     :aria-label="cardAriaLabel"
@@ -155,6 +159,14 @@ const props = defineProps({
     type: String,
     required: true,
   },
+  mapMode: {
+    type: Boolean,
+    default: false,
+  },
+  tone: {
+    type: String,
+    default: 'layout',
+  },
 })
 
 const isExpanded = ref(false)
@@ -237,6 +249,18 @@ const cardAriaLabel = computed(() => (
   min-height: 142px;
 }
 
+.today-widget--map {
+  width: min(188px, calc(100vw - 108px));
+  border-radius: 18px;
+  background: rgba(255, 252, 244, 0.84);
+  box-shadow: 0 12px 26px rgba(37, 51, 34, 0.16);
+}
+
+.today-widget--map .today-widget__shell {
+  min-height: 0;
+  gap: 2px;
+}
+
 .today-widget__header {
   display: flex;
   align-items: start;
@@ -279,6 +303,14 @@ const cardAriaLabel = computed(() => (
   color: #687b60;
 }
 
+.today-widget--map .today-widget__day {
+  font-size: 2rem;
+}
+
+.today-widget--map .today-widget__month {
+  font-size: 0.72rem;
+}
+
 .today-widget__chips {
   display: flex;
   flex-wrap: wrap;
@@ -319,5 +351,23 @@ const cardAriaLabel = computed(() => (
 
 .today-widget--expanded {
   width: min(320px, calc(100vw - 24px));
+}
+
+.today-widget--map.today-widget--expanded {
+  width: min(280px, calc(100vw - 24px));
+}
+
+.today-widget--layout {
+  background: rgba(255, 252, 244, 0.9);
+}
+
+.today-widget--plan {
+  background:
+    linear-gradient(180deg, rgba(255, 247, 232, 0.94) 0%, rgba(252, 243, 225, 0.94) 100%);
+}
+
+.today-widget--current {
+  background:
+    linear-gradient(180deg, rgba(239, 248, 243, 0.94) 0%, rgba(231, 244, 238, 0.94) 100%);
 }
 </style>

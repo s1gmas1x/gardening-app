@@ -9,6 +9,7 @@ import {
   clamp,
   clampBedToGarden,
   createDefaultBed,
+  findNextBedPlacement,
   normalizeGardenDimensions,
   normalizeBedType,
   zoomAroundPoint,
@@ -54,6 +55,9 @@ function buildPersistedSnapshot(state) {
         bedHeightInches: bed.bedHeightInches,
         rotationDegrees: bed.rotationDegrees,
         color: bed.color,
+        renderKind: bed.renderKind ?? null,
+        placementMode: bed.placementMode ?? null,
+        borderEdge: bed.borderEdge ?? null,
       })),
       selectedBedId: state.selectedBedId,
       interactionMode: state.interactionMode,
@@ -72,7 +76,12 @@ function hydrateState(snapshot) {
 
   const dimensions = normalizeGardenDimensions(source.widthFeet, source.lengthFeet)
   const beds = Array.isArray(source.beds)
-    ? source.beds.map((bed) => clampBedToGarden(bed, dimensions))
+    ? source.beds.map((bed) => clampBedToGarden({
+      ...bed,
+      renderKind: bed.renderKind ?? null,
+      placementMode: bed.placementMode ?? null,
+      borderEdge: bed.borderEdge ?? null,
+    }, dimensions))
     : []
   const selectedBedId = beds.some((bed) => bed.id === source.selectedBedId)
     ? source.selectedBedId
@@ -162,17 +171,29 @@ export const useGardenStore = defineStore('garden', {
       this.selectedBedId = null
     },
 
-    addBed(type = 'regular') {
+    addBed(type = 'regular', overrides = {}) {
+      const { useExactPlacement = false, ...bedOverrides } = overrides
       const normalizedType = normalizeBedType(type)
       const sequenceNumber = this.beds.filter((bed) => bed.type === normalizedType).length + 1
-      const nextBed = createDefaultBed(
+      const seededBed = createDefaultBed(
         this.beds.length,
         this.gardenDimensions,
         normalizedType,
         sequenceNumber,
       )
+      const candidateBed = clampBedToGarden({
+        ...seededBed,
+        ...bedOverrides,
+      }, this.gardenDimensions)
+      const nextBed = useExactPlacement
+        ? candidateBed
+        : clampBedToGarden({
+          ...candidateBed,
+          ...findNextBedPlacement(this.beds, candidateBed, this.gardenDimensions),
+        }, this.gardenDimensions)
       this.beds.push(nextBed)
       this.selectedBedId = nextBed.id
+      return nextBed
     },
 
     updateBed(id, updates) {
