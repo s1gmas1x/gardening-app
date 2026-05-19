@@ -13,6 +13,7 @@
     @pointerup="handlePointerUp"
     @pointerleave="handlePointerUp"
     @pointercancel="handlePointerUp"
+    @click="handleViewportClick"
   >
     <svg class="planner-svg">
       <g :transform="transform">
@@ -98,8 +99,8 @@
               :cy="feetToPixels(placementPreview.heightFeet) / 2"
               :rx="feetToPixels(placementPreview.widthFeet) / 2"
               :ry="feetToPixels(placementPreview.heightFeet) / 2"
-              :fill="getBedTypeMeta(placementPreview.type).fill"
-              :stroke="getBedTypeMeta(placementPreview.type).stroke"
+              :fill="getAreaVisualMeta(placementPreview).fill"
+              :stroke="getAreaVisualMeta(placementPreview).stroke"
             />
             <rect
               v-else
@@ -110,8 +111,8 @@
               :width="feetToPixels(placementPreview.widthFeet)"
               :height="feetToPixels(placementPreview.heightFeet)"
               :rx="placementPreview.type === 'raised' ? 10 : 6"
-              :fill="getBedTypeMeta(placementPreview.type).fill"
-              :stroke="getBedTypeMeta(placementPreview.type).stroke"
+              :fill="getAreaVisualMeta(placementPreview).fill"
+              :stroke="getAreaVisualMeta(placementPreview).stroke"
             />
 
             <rect
@@ -144,6 +145,7 @@
           ]"
           :transform="`translate(${feetToPixels(bed.xFeet)} ${feetToPixels(bed.yFeet)})`"
           @pointerdown.stop="handleBedPointerDown($event, bed.id)"
+          @click.stop="handleBedClick"
         >
           <g v-if="isEntranceArea(bed)" class="entrance-markers">
             <rect
@@ -235,8 +237,8 @@
               :cy="feetToPixels(bed.heightFeet) / 2"
               :rx="feetToPixels(bed.widthFeet) / 2"
               :ry="feetToPixels(bed.heightFeet) / 2"
-              :fill="getBedTypeMeta(bed.type).fill"
-              :stroke="getBedTypeMeta(bed.type).stroke"
+              :fill="getAreaVisualMeta(bed).fill"
+              :stroke="getAreaVisualMeta(bed).stroke"
             />
             <rect
               v-else
@@ -247,8 +249,8 @@
               :width="feetToPixels(bed.widthFeet)"
               :height="feetToPixels(bed.heightFeet)"
               :rx="bed.type === 'raised' ? 10 : 6"
-              :fill="getBedTypeMeta(bed.type).fill"
-              :stroke="getBedTypeMeta(bed.type).stroke"
+              :fill="getAreaVisualMeta(bed).fill"
+              :stroke="getAreaVisualMeta(bed).stroke"
             />
 
             <rect
@@ -266,7 +268,7 @@
                 v-for="line in getBedGrid(bed).minorLines"
                 :key="`bed-minor-grid-${bed.id}-${line.x1}-${line.y1}-${line.x2}-${line.y2}`"
                 class="bed-grid-line bed-grid-line--minor"
-                :stroke="getBedTypeMeta(bed.type).grid"
+                :stroke="getAreaVisualMeta(bed).grid"
                 v-bind="line"
               />
 
@@ -274,7 +276,7 @@
                 v-for="line in getBedGrid(bed).majorLines"
                 :key="`bed-major-grid-${bed.id}-${line.x1}-${line.y1}-${line.x2}-${line.y2}`"
                 class="bed-grid-line bed-grid-line--major"
-                :stroke="getBedTypeMeta(bed.type).grid"
+                :stroke="getAreaVisualMeta(bed).grid"
                 v-bind="line"
               />
 
@@ -543,6 +545,18 @@
             label="Length"
             suffix="ft"
           />
+          <q-input
+            v-if="supportsSelectedBedHeight"
+            v-model.number="dimensionDraft.bedHeightInches"
+            type="number"
+            min="1"
+            max="96"
+            step="1"
+            outlined
+            dense
+            label="Depth"
+            suffix="in"
+          />
         </q-card-section>
 
         <q-card-actions align="right">
@@ -674,9 +688,13 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  placementPreviewLocked: {
+    type: Boolean,
+    default: false,
+  },
 })
 
-const emit = defineEmits(['finish-guided-transplant', 'cancel-guided-transplant', 'change-tool', 'request-measurement', 'update-placement-preview'])
+const emit = defineEmits(['finish-guided-transplant', 'cancel-guided-transplant', 'change-tool', 'request-measurement', 'update-placement-preview', 'toggle-placement-preview-lock'])
 
 const gardenStore = useGardenStore()
 const plantStore = usePlantStore()
@@ -749,6 +767,7 @@ const isQuickMeasureOpen = ref(false)
 const dimensionDraft = reactive({
   widthFeet: 1,
   heightFeet: 1,
+  bedHeightInches: 1,
 })
 
 const currentGridMinorStepFeet = computed(() => {
@@ -784,10 +803,21 @@ const plantActionLabel = computed(() => (
   props.workspaceMode === 'current' ? 'Update Garden Planting' : 'Plan This Zone'
 ))
 const selectedBedDimensionLabel = computed(() => (
-  selectedBed.value ? `${selectedBed.value.widthFeet.toFixed(1)} x ${selectedBed.value.heightFeet.toFixed(1)} ft` : ''
+  selectedBed.value
+    ? `${selectedBed.value.widthFeet.toFixed(1)} x ${selectedBed.value.heightFeet.toFixed(1)} ft`
+      + (supportsSelectedBedHeight.value ? ` · ${selectedBed.value.bedHeightInches} in` : '')
+    : ''
 ))
 const toolHint = computed(() => {
   if (props.workspaceMode === 'layout' && props.placementPreview) {
+    if (!props.mobileCaptureMode && props.placementPreviewLocked) {
+      return 'Click the ghost again to move it, or use the nearby controls to rotate, resize, or place it'
+    }
+
+    if (!props.mobileCaptureMode) {
+      return 'Move the ghost over the map, then click once to pin it in place'
+    }
+
     return 'Move the ghost object over the map, then place it when it lines up with the real garden'
   }
 
@@ -1041,6 +1071,16 @@ const selectedBedMenuStyle = computed(() => {
   }
 })
 
+function syncDimensionDraftFromSelectedBed() {
+  if (!selectedBed.value) {
+    return
+  }
+
+  dimensionDraft.widthFeet = selectedBed.value.widthFeet
+  dimensionDraft.heightFeet = selectedBed.value.heightFeet
+  dimensionDraft.bedHeightInches = selectedBed.value.bedHeightInches
+}
+
 watch(selectedBed, (nextBed) => {
   if (!nextBed) {
     isBedDetailsOpen.value = false
@@ -1053,8 +1093,13 @@ watch(selectedBed, (nextBed) => {
     selectedPlantId.value = defaultPlantId.value
   }
 
-  dimensionDraft.widthFeet = nextBed.widthFeet
-  dimensionDraft.heightFeet = nextBed.heightFeet
+  syncDimensionDraftFromSelectedBed()
+}, { immediate: true })
+
+watch(isQuickMeasureOpen, (isOpen) => {
+  if (isOpen) {
+    syncDimensionDraftFromSelectedBed()
+  }
 })
 
 watch(defaultPlantId, (nextDefaultPlantId) => {
@@ -1109,6 +1154,26 @@ watch(
 
 function getBedGrid(bed) {
   return buildBedGridLines(bed.widthFeet, bed.heightFeet, currentGridMinorStepFeet.value)
+}
+
+function getAreaVisualMeta(area) {
+  if (area?.renderTheme === 'structure') {
+    return {
+      fill: '#bfdacd',
+      stroke: '#4f7468',
+      grid: 'rgba(79, 116, 104, 0.24)',
+    }
+  }
+
+  if (area?.renderTheme === 'landmark') {
+    return {
+      fill: '#d6d1c1',
+      stroke: '#706958',
+      grid: 'rgba(112, 105, 88, 0.18)',
+    }
+  }
+
+  return getBedTypeMeta(area?.type)
 }
 
 function getBedPlantings(bed) {
@@ -1513,6 +1578,7 @@ function applyQuickDimensions() {
   gardenStore.updateBed(selectedBed.value.id, {
     widthFeet: dimensionDraft.widthFeet,
     heightFeet: dimensionDraft.heightFeet,
+    bedHeightInches: supportsSelectedBedHeight.value ? dimensionDraft.bedHeightInches : selectedBed.value.bedHeightInches,
   })
   isQuickMeasureOpen.value = false
 }
@@ -2191,7 +2257,25 @@ function updatePlacementPreviewFromEvent(event) {
     return
   }
 
-  emit('update-placement-preview', getGardenFeetPoint(event))
+  emit('update-placement-preview', {
+    gardenPoint: getGardenFeetPoint(event),
+    clientX: event.clientX,
+    clientY: event.clientY,
+  })
+}
+
+function togglePlacementPreviewLockFromEvent(event) {
+  if (!props.placementPreview || props.mobileCaptureMode) {
+    return
+  }
+
+  if (!props.placementPreviewLocked) {
+    updatePlacementPreviewFromEvent(event)
+  }
+
+  emit('toggle-placement-preview-lock', {
+    gardenPoint: getGardenFeetPoint(event),
+  })
 }
 
 function handleViewportPointerDown(event) {
@@ -2205,9 +2289,8 @@ function handleViewportPointerDown(event) {
   }
 
   if (props.placementPreview) {
-    updatePlacementPreviewFromEvent(event)
-
     if (event.pointerType === 'touch') {
+      updatePlacementPreviewFromEvent(event)
       pointerState.mode = 'placement'
       pointerState.pointerId = event.pointerId
       viewportRef.value?.setPointerCapture(event.pointerId)
@@ -2246,9 +2329,8 @@ function handleBedPointerDown(event, bedId) {
   }
 
   if (props.placementPreview) {
-    updatePlacementPreviewFromEvent(event)
-
     if (event.pointerType === 'touch') {
+      updatePlacementPreviewFromEvent(event)
       pointerState.mode = 'placement'
       pointerState.pointerId = event.pointerId
       viewportRef.value?.setPointerCapture(event.pointerId)
@@ -2310,7 +2392,10 @@ function handlePointerMove(event) {
   }
 
   if (props.placementPreview) {
-    if (event.pointerType !== 'touch' || pointerState.mode === 'placement' || pointerState.pointerId === event.pointerId) {
+    if (
+      !props.placementPreviewLocked
+      && (event.pointerType !== 'touch' || pointerState.mode === 'placement' || pointerState.pointerId === event.pointerId)
+    ) {
       updatePlacementPreviewFromEvent(event)
     }
 
@@ -2357,11 +2442,19 @@ function handlePointerMove(event) {
     const nextWidthFeet = rotation === 90 || rotation === 270 ? footprintHeight : footprintWidth
     const nextHeightFeet = rotation === 90 || rotation === 270 ? footprintWidth : footprintHeight
 
-    gardenStore.updateBed(pointerState.bedId, {
+  gardenStore.updateBed(pointerState.bedId, {
       widthFeet: nextWidthFeet,
       heightFeet: nextHeightFeet,
     })
   }
+}
+
+function handleViewportClick(event) {
+  togglePlacementPreviewLockFromEvent(event)
+}
+
+function handleBedClick(event) {
+  togglePlacementPreviewLockFromEvent(event)
 }
 
 function handlePointerUp(event) {

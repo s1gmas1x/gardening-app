@@ -29,10 +29,12 @@
                     :active-tool="activeCanvasTool"
                     :grid-scale="selectedGridScale"
                     :placement-preview="activeWorkspaceTab === 'layout' ? pendingPlacement : null"
+                    :placement-preview-locked="activeWorkspaceTab === 'layout' ? isPendingPlacementPinned : false"
                     workspace-mode="layout"
                     @change-tool="activeCanvasTool = $event"
                     @request-measurement="handleMeasurementRequest"
                     @update-placement-preview="updatePendingPlacementPosition"
+                    @toggle-placement-preview-lock="togglePendingPlacementPin"
                   />
                 </div>
               </div>
@@ -148,10 +150,10 @@
               :color="workspaceTheme.accentColor"
               text-color="white"
               icon="explore"
-              :label="isCapturePanelOpen ? 'Hide Palette' : 'Open Palette'"
+              :label="isCapturePanelOpen ? 'Close Build' : 'Build'"
               @click="toggleCapturePanel"
             >
-              <q-tooltip>Open the garden capture palette</q-tooltip>
+              <q-tooltip>Open the garden build menu</q-tooltip>
             </q-btn>
           </div>
 
@@ -161,55 +163,82 @@
           >
             <q-card flat bordered class="capture-sheet" :class="{ 'capture-sheet--mobile': isMobileCaptureMode }">
               <q-card-section class="capture-sheet__header">
+                <div class="capture-sheet__title-block">
+                  <div class="capture-sheet__title">Build</div>
+                  <div class="capture-sheet__caption">Pick a set, then drop a piece onto the map.</div>
+                </div>
                 <q-btn flat round dense icon="close" @click="closeCapturePanel" />
               </q-card-section>
 
               <q-card-section class="capture-sheet__body">
-                <div class="capture-sheet__group-grid">
+                <div
+                  v-for="group in captureGroups"
+                  :key="group.value"
+                  class="capture-sheet__group-block"
+                >
                   <q-btn
-                    v-for="group in captureGroups"
-                    :key="group.value"
                     no-caps
                     rounded
                     unelevated
-                    :icon="group.icon"
-                    :color="selectedCaptureGroup === group.value ? workspaceTheme.accentColor : 'white'"
-                    :text-color="selectedCaptureGroup === group.value ? 'white' : 'grey-8'"
-                    class="capture-sheet__group-btn"
-                    @click="toggleCaptureGroup(group.value)"
-                  >
-                    <div class="capture-sheet__type-copy">
-                      <span>{{ group.label }}</span>
-                    </div>
-                  </q-btn>
-                </div>
-
-                <div v-if="visibleCaptureItems.length" class="capture-sheet__subgrid">
-                  <q-btn
-                    v-for="item in visibleCaptureItems"
-                    :key="item.value"
-                    no-caps
-                    rounded
-                    unelevated
-                    :icon="item.icon"
                     color="white"
                     text-color="grey-8"
-                    class="capture-sheet__type-btn"
-                    @click="startPlacementFromPalette(item)"
+                    class="capture-sheet__group-btn"
+                    :class="[
+                      `capture-sheet__group-btn--${group.value}`,
+                      { 'capture-sheet__group-btn--active': selectedCaptureGroup === group.value },
+                    ]"
+                    @click="toggleCaptureGroup(group.value)"
                   >
-                    <div class="capture-sheet__type-copy">
-                      <span>{{ item.label }}</span>
+                    <div class="capture-sheet__button-row">
+                      <BuildMenuGlyph :kind="group.value" />
+                      <div class="capture-sheet__type-copy capture-sheet__type-copy--group">
+                        <span>{{ group.label }}</span>
+                      </div>
+                      <q-icon
+                        name="expand_more"
+                        class="capture-sheet__expand-icon"
+                        :class="{ 'capture-sheet__expand-icon--open': selectedCaptureGroup === group.value }"
+                      />
                     </div>
                   </q-btn>
+
+                  <q-slide-transition>
+                    <div v-if="selectedCaptureGroup === group.value" class="capture-sheet__subgrid">
+                      <q-btn
+                        v-for="item in getCaptureItemsByGroup(group.value)"
+                        :key="item.value"
+                        no-caps
+                        rounded
+                        unelevated
+                        color="white"
+                        text-color="grey-8"
+                        class="capture-sheet__type-btn"
+                        :class="`capture-sheet__type-btn--${group.value}`"
+                        @click="startPlacementFromPalette(item)"
+                      >
+                        <div class="capture-sheet__button-row capture-sheet__button-row--item">
+                          <BuildMenuGlyph :kind="item.value" />
+                          <div class="capture-sheet__type-copy">
+                            <span>{{ item.label }}</span>
+                            <small>{{ getCaptureItemSummary(item) }}</small>
+                          </div>
+                        </div>
+                      </q-btn>
+                    </div>
+                  </q-slide-transition>
                 </div>
               </q-card-section>
             </q-card>
           </div>
 
           <div
-            v-if="activeWorkspaceTab === 'layout' && pendingPlacement"
+            v-if="activeWorkspaceTab === 'layout' && isPendingPlacementToolbarVisible"
             class="simulation-stage__placement-toolbar"
             :style="pendingPlacementToolbarStyle"
+            @mouseenter="isPlacementToolbarHovered = true"
+            @mouseleave="isPlacementToolbarHovered = false"
+            @pointerdown.stop
+            @pointermove.stop
           >
             <q-card flat bordered class="placement-toolbar" :class="{ 'placement-toolbar--mobile': isMobileCaptureMode }">
               <q-card-section class="placement-toolbar__section">
@@ -409,6 +438,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
+import BuildMenuGlyph from 'src/components/garden/BuildMenuGlyph.vue'
 import GardenCanvas from 'src/components/garden/GardenCanvas.vue'
 import GardenCapturePalette from 'src/components/garden/GardenCapturePalette.vue'
 import GardenDimensionsDialog from 'src/components/garden/GardenDimensionsDialog.vue'
@@ -442,6 +472,8 @@ const selectedGridScale = ref('six_in')
 const isCapturePanelOpen = ref(false)
 const selectedCaptureGroup = ref(null)
 const pendingPlacement = ref(null)
+const isPendingPlacementPinned = ref(false)
+const isPlacementToolbarHovered = ref(false)
 const isAssistantOpen = ref(false)
 const assistantSection = ref('rhythm')
 const workspaceTheme = computed(() => (
@@ -520,21 +552,19 @@ const captureGroups = [
   { value: 'landmarks', label: 'Landmarks', icon: 'place' },
 ]
 const captureItems = [
-  { value: 'raised', label: 'Raised Bed', icon: 'view_in_ar', group: 'planting_areas', storeType: 'raised', widthFeet: 4, heightFeet: 8, bedHeightInches: 18, namePrefix: null, sizePresets: [{ widthFeet: 4, heightFeet: 8 }, { widthFeet: 3, heightFeet: 6 }, { widthFeet: 2, heightFeet: 4 }] },
-  { value: 'regular', label: 'In-Ground Bed', icon: 'crop_square', group: 'planting_areas', storeType: 'regular', widthFeet: 4, heightFeet: 8, bedHeightInches: 0, namePrefix: null, sizePresets: [{ widthFeet: 4, heightFeet: 8 }, { widthFeet: 3, heightFeet: 6 }, { widthFeet: 2, heightFeet: 4 }] },
-  { value: 'pot', label: 'Pot', icon: 'radio_button_unchecked', group: 'planting_areas', storeType: 'pot', widthFeet: 2, heightFeet: 2, bedHeightInches: 16, namePrefix: null, sizePresets: [{ widthFeet: 2, heightFeet: 2 }, { widthFeet: 3, heightFeet: 3 }] },
-  { value: 'greenhouse', label: 'Greenhouse', icon: 'home_work', group: 'structures', storeType: 'regular', widthFeet: 8, heightFeet: 10, bedHeightInches: 0, namePrefix: 'Greenhouse', sizePresets: [{ widthFeet: 8, heightFeet: 10 }, { widthFeet: 10, heightFeet: 12 }] },
-  { value: 'hoophouse', label: 'Hoophouse', icon: 'roofing', group: 'structures', storeType: 'regular', widthFeet: 10, heightFeet: 14, bedHeightInches: 0, namePrefix: 'Hoophouse', sizePresets: [{ widthFeet: 10, heightFeet: 14 }, { widthFeet: 8, heightFeet: 12 }] },
-  { value: 'entrance', label: 'Entrance', icon: 'login', group: 'landmarks', storeType: 'regular', widthFeet: 3, heightFeet: 1, bedHeightInches: 0, namePrefix: 'Entrance', renderKind: 'entrance', placementMode: 'border', borderEdge: 'bottom', sizePresets: [{ widthFeet: 3, heightFeet: 1 }, { widthFeet: 4, heightFeet: 1 }] },
-  { value: 'fence', label: 'Fence / Wall', icon: 'fence', group: 'landmarks', storeType: 'regular', widthFeet: 12, heightFeet: 1, bedHeightInches: 0, namePrefix: 'Fence', renderKind: 'line', sizePresets: [{ widthFeet: 8, heightFeet: 1 }, { widthFeet: 12, heightFeet: 1 }, { widthFeet: 16, heightFeet: 1 }] },
+  { value: 'raised', label: 'Raised Bed', icon: 'view_in_ar', group: 'planting_areas', storeType: 'raised', renderTheme: 'planting', widthFeet: 4, heightFeet: 8, bedHeightInches: 18, namePrefix: null, sizePresets: [{ widthFeet: 4, heightFeet: 8 }, { widthFeet: 3, heightFeet: 6 }, { widthFeet: 2, heightFeet: 4 }] },
+  { value: 'regular', label: 'In-Ground Bed', icon: 'crop_square', group: 'planting_areas', storeType: 'regular', renderTheme: 'planting', widthFeet: 4, heightFeet: 8, bedHeightInches: 0, namePrefix: null, sizePresets: [{ widthFeet: 4, heightFeet: 8 }, { widthFeet: 3, heightFeet: 6 }, { widthFeet: 2, heightFeet: 4 }] },
+  { value: 'pot', label: 'Pot', icon: 'radio_button_unchecked', group: 'planting_areas', storeType: 'pot', renderTheme: 'planting', widthFeet: 2, heightFeet: 2, bedHeightInches: 16, namePrefix: null, sizePresets: [{ widthFeet: 2, heightFeet: 2 }, { widthFeet: 3, heightFeet: 3 }] },
+  { value: 'greenhouse', label: 'Greenhouse', icon: 'home_work', group: 'structures', storeType: 'regular', renderTheme: 'structure', widthFeet: 8, heightFeet: 10, bedHeightInches: 0, namePrefix: 'Greenhouse', sizePresets: [{ widthFeet: 8, heightFeet: 10 }, { widthFeet: 10, heightFeet: 12 }] },
+  { value: 'hoophouse', label: 'Hoophouse', icon: 'roofing', group: 'structures', storeType: 'regular', renderTheme: 'structure', widthFeet: 10, heightFeet: 14, bedHeightInches: 0, namePrefix: 'Hoophouse', sizePresets: [{ widthFeet: 10, heightFeet: 14 }, { widthFeet: 8, heightFeet: 12 }] },
+  { value: 'entrance', label: 'Entrance', icon: 'login', group: 'landmarks', storeType: 'regular', renderTheme: 'landmark', widthFeet: 3, heightFeet: 1, bedHeightInches: 0, namePrefix: 'Entrance', renderKind: 'entrance', placementMode: 'border', borderEdge: 'bottom', sizePresets: [{ widthFeet: 3, heightFeet: 1 }, { widthFeet: 4, heightFeet: 1 }] },
+  { value: 'fence', label: 'Fence / Wall', icon: 'fence', group: 'landmarks', storeType: 'regular', renderTheme: 'landmark', widthFeet: 12, heightFeet: 1, bedHeightInches: 0, namePrefix: 'Fence', renderKind: 'line', sizePresets: [{ widthFeet: 8, heightFeet: 1 }, { widthFeet: 12, heightFeet: 1 }, { widthFeet: 16, heightFeet: 1 }] },
 ]
-const visibleCaptureItems = computed(() => (
-  selectedCaptureGroup.value
-    ? captureItems.filter((item) => item.group === selectedCaptureGroup.value)
-    : []
-))
 const pendingPlacementTemplate = computed(() => (
   captureItems.find((item) => item.value === pendingPlacement.value?.value) ?? null
+))
+const isPendingPlacementToolbarVisible = computed(() => (
+  Boolean(pendingPlacement.value) && (isMobileCaptureMode.value || isPendingPlacementPinned.value)
 ))
 const pendingPlacementSizeLabel = computed(() => (
   pendingPlacement.value
@@ -542,9 +572,9 @@ const pendingPlacementSizeLabel = computed(() => (
       + (bedSupportsHeight(pendingPlacement.value.type) ? ` · ${pendingPlacement.value.bedHeightInches} in` : '')
     : ''
 ))
-const pendingPlacementToolbarStyle = computed(() => {
+function getPendingPlacementToolbarMetrics() {
   if (!pendingPlacement.value) {
-    return {}
+    return null
   }
 
   const toolbarWidth = isMobileCaptureMode.value ? 248 : 286
@@ -566,8 +596,23 @@ const pendingPlacementToolbarStyle = computed(() => {
   const unclampedTop = top + (height / 2) - (toolbarHeight / 2)
 
   return {
-    left: `${clamp(unclampedLeft, edgePadding, Math.max(screenWidth - toolbarWidth - edgePadding, edgePadding))}px`,
-    top: `${clamp(unclampedTop, edgePadding, Math.max(screenHeight - toolbarHeight - edgePadding, edgePadding))}px`,
+    width: toolbarWidth,
+    height: toolbarHeight,
+    left: clamp(unclampedLeft, edgePadding, Math.max(screenWidth - toolbarWidth - edgePadding, edgePadding)),
+    top: clamp(unclampedTop, edgePadding, Math.max(screenHeight - toolbarHeight - edgePadding, edgePadding)),
+  }
+}
+
+const pendingPlacementToolbarStyle = computed(() => {
+  const toolbarMetrics = getPendingPlacementToolbarMetrics()
+
+  if (!toolbarMetrics) {
+    return {}
+  }
+
+  return {
+    left: `${toolbarMetrics.left}px`,
+    top: `${toolbarMetrics.top}px`,
   }
 })
 
@@ -696,6 +741,7 @@ watch(activeWorkspaceTab, (nextTab) => {
 
   if (nextTab !== 'layout') {
     isCapturePanelOpen.value = false
+    isPendingPlacementPinned.value = false
     pendingPlacement.value = null
   }
 
@@ -761,6 +807,15 @@ function toggleCaptureGroup(groupValue) {
   selectedCaptureGroup.value = selectedCaptureGroup.value === groupValue ? null : groupValue
 }
 
+function getCaptureItemsByGroup(groupValue) {
+  return captureItems.filter((item) => item.group === groupValue)
+}
+
+function getCaptureItemSummary(item) {
+  const sizeLabel = `${item.widthFeet} x ${item.heightFeet} ft`
+  return bedSupportsHeight(item.storeType) ? `${sizeLabel} · ${item.bedHeightInches} in` : sizeLabel
+}
+
 function buildCaptureZoneName(template, nextBed) {
   if (!template.namePrefix || !nextBed?.name) {
     return nextBed?.name ?? ''
@@ -772,6 +827,8 @@ function buildCaptureZoneName(template, nextBed) {
 
 function startPlacementFromPalette(item) {
   const defaultPosition = getDefaultPendingPlacementPosition(item)
+  isPendingPlacementPinned.value = isMobileCaptureMode.value
+  isPlacementToolbarHovered.value = false
   pendingPlacement.value = {
     ...item,
     type: item.storeType,
@@ -786,12 +843,58 @@ function startPlacementFromPalette(item) {
   activeCanvasTool.value = 'move'
 }
 
-function updatePendingPlacementPosition(position) {
-  if (!pendingPlacement.value || !position) {
+function isPointerNearPendingPlacementToolbar(clientX, clientY) {
+  if (
+    isMobileCaptureMode.value
+    || !isPendingPlacementToolbarVisible.value
+    || clientX === undefined
+    || clientY === undefined
+  ) {
+    return false
+  }
+
+  const toolbarMetrics = getPendingPlacementToolbarMetrics()
+
+  if (!toolbarMetrics) {
+    return false
+  }
+
+  const padding = 20
+  return clientX >= toolbarMetrics.left - padding
+    && clientX <= toolbarMetrics.left + toolbarMetrics.width + padding
+    && clientY >= toolbarMetrics.top - padding
+    && clientY <= toolbarMetrics.top + toolbarMetrics.height + padding
+}
+
+function updatePendingPlacementPosition(payload) {
+  const gardenPoint = payload?.gardenPoint ?? payload
+
+  if (
+    !pendingPlacement.value
+    || !gardenPoint
+    || (!isMobileCaptureMode.value && isPendingPlacementPinned.value)
+    || (!$q.screen.lt.md && (isPlacementToolbarHovered.value || isPointerNearPendingPlacementToolbar(payload?.clientX, payload?.clientY)))
+  ) {
     return
   }
 
-  pendingPlacement.value = constrainPendingPlacement(pendingPlacement.value, position)
+  pendingPlacement.value = constrainPendingPlacement(pendingPlacement.value, gardenPoint)
+}
+
+function togglePendingPlacementPin(payload = null) {
+  if (!pendingPlacement.value || isMobileCaptureMode.value) {
+    return
+  }
+
+  if (!isPendingPlacementPinned.value) {
+    const gardenPoint = payload?.gardenPoint ?? payload
+
+    if (gardenPoint) {
+      pendingPlacement.value = constrainPendingPlacement(pendingPlacement.value, gardenPoint)
+    }
+  }
+
+  isPendingPlacementPinned.value = !isPendingPlacementPinned.value
 }
 
 function placePendingPlacement() {
@@ -808,6 +911,7 @@ function placePendingPlacement() {
     yFeet: pendingPlacement.value.yFeet,
     rotationDegrees: pendingPlacement.value.rotationDegrees,
     renderKind: pendingPlacement.value.renderKind ?? null,
+    renderTheme: pendingPlacement.value.renderTheme ?? null,
     placementMode: pendingPlacement.value.placementMode ?? null,
     borderEdge: pendingPlacement.value.borderEdge ?? null,
   })
@@ -822,10 +926,13 @@ function placePendingPlacement() {
     })
   }
 
+  isPendingPlacementPinned.value = false
   pendingPlacement.value = null
 }
 
 function cancelPendingPlacement() {
+  isPendingPlacementPinned.value = false
+  isPlacementToolbarHovered.value = false
   pendingPlacement.value = null
   activeCanvasTool.value = 'move'
 }
@@ -1502,7 +1609,7 @@ const assistantAlertCount = computed(() => (
   right: auto;
   top: 232px;
   z-index: 4;
-  max-width: min(210px, calc(100vw - 136px));
+  max-width: min(228px, calc(100vw - 132px));
 }
 
 .simulation-stage__placement-toolbar {
@@ -1558,48 +1665,96 @@ const assistantAlertCount = computed(() => (
 }
 
 .capture-sheet {
-  width: min(210px, calc(100vw - 136px));
+  width: min(228px, calc(100vw - 132px));
   border-radius: 18px;
-  background: rgba(255, 252, 244, 0.98);
-  box-shadow: 0 18px 34px rgba(37, 51, 34, 0.16);
+  background:
+    linear-gradient(180deg, rgba(255, 254, 249, 0.99), rgba(248, 244, 232, 0.98));
+  box-shadow: 0 14px 26px rgba(37, 51, 34, 0.14);
+  border-color: rgba(99, 118, 91, 0.16);
 }
 
 .capture-sheet--mobile {
-  width: min(198px, calc(100vw - 116px));
+  width: min(216px, calc(100vw - 108px));
   border-radius: 18px;
 }
 
 .capture-sheet__header {
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  min-height: 0;
-  padding-bottom: 4px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px 4px;
+}
+
+.capture-sheet__title-block {
+  min-width: 0;
+}
+
+.capture-sheet__title {
+  font-size: 0.84rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #253322;
+}
+
+.capture-sheet__caption {
+  margin-top: 2px;
+  font-size: 0.63rem;
+  line-height: 1.3;
+  color: #6d7d67;
 }
 
 .capture-sheet__body {
   display: grid;
-  gap: 8px;
-  padding-top: 4px;
-}
-
-.capture-sheet__group-grid {
-  display: grid;
-  gap: 6px;
+  gap: 7px;
+  padding: 2px 10px 10px;
 }
 
 .capture-sheet__group-btn {
   justify-content: flex-start;
-  min-height: 42px;
-  padding: 6px 8px;
+  min-height: 36px;
+  padding: 4px 8px;
   border-radius: 12px;
+  width: 100%;
+  box-shadow: 0 4px 10px rgba(37, 51, 34, 0.06);
+  border: 1px solid rgba(99, 118, 91, 0.08);
+}
+
+.capture-sheet__group-block {
+  display: grid;
+  gap: 4px;
+}
+
+.capture-sheet__button-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.capture-sheet__button-row--item {
+  gap: 7px;
+}
+
+.capture-sheet__expand-icon {
+  margin-left: auto;
+  font-size: 16px;
+  opacity: 0.58;
+  transform: rotate(0deg);
+  transition: transform 160ms ease, opacity 160ms ease;
+}
+
+.capture-sheet__expand-icon--open {
+  opacity: 0.88;
+  transform: rotate(180deg);
 }
 
 .capture-sheet__subgrid {
   display: grid;
-  gap: 6px;
-  padding-top: 2px;
-  border-top: 1px solid rgba(111, 127, 106, 0.16);
+  gap: 4px;
+  padding-top: 1px;
+  padding-left: 12px;
+  overflow: hidden;
 }
 
 .capture-sheet__type-grid {
@@ -1609,19 +1764,65 @@ const assistantAlertCount = computed(() => (
 }
 
 .capture-sheet__type-btn {
-  justify-content: center;
-  min-height: 56px;
-  padding: 6px 4px;
-  border-radius: 14px;
+  justify-content: flex-start;
+  min-height: 40px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(37, 51, 34, 0.05);
+  border: 1px solid rgba(99, 118, 91, 0.08);
+}
+
+.capture-sheet__group-btn--active.capture-sheet__group-btn--planting_areas {
+  background: linear-gradient(180deg, #8c6842, #775432) !important;
+  color: #fffdf8 !important;
+  border-color: rgba(104, 71, 39, 0.28);
+}
+
+.capture-sheet__group-btn--active.capture-sheet__group-btn--structures {
+  background: linear-gradient(180deg, #6f998b, #52786c) !important;
+  color: #f7fffc !important;
+  border-color: rgba(72, 108, 96, 0.3);
+}
+
+.capture-sheet__group-btn--active.capture-sheet__group-btn--landmarks {
+  background: linear-gradient(180deg, #8b887d, #706b61) !important;
+  color: #fbfaf7 !important;
+  border-color: rgba(95, 90, 81, 0.3);
+}
+
+.capture-sheet__type-btn--planting_areas {
+  background: rgba(148, 106, 63, 0.08) !important;
+}
+
+.capture-sheet__type-btn--structures {
+  background: rgba(91, 137, 123, 0.1) !important;
+}
+
+.capture-sheet__type-btn--landmarks {
+  background: rgba(122, 116, 103, 0.1) !important;
 }
 
 .capture-sheet__type-copy {
   display: grid;
-  justify-items: center;
-  text-align: center;
-  gap: 2px;
-  font-size: 0.76rem;
-  line-height: 1.2;
+  justify-items: start;
+  text-align: left;
+  gap: 1px;
+  font-size: 0.72rem;
+  line-height: 1.15;
+  min-width: 0;
+}
+
+.capture-sheet__type-copy--group {
+  justify-items: start;
+  text-align: left;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.capture-sheet__type-copy small {
+  font-size: 0.6rem;
+  color: inherit;
+  opacity: 0.68;
 }
 
 .placement-toolbar {

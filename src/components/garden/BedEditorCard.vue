@@ -20,7 +20,7 @@
             @update:model-value="$emit('update-name', $event)"
           />
           <div class="bed-editor__meta">
-            {{ selectedBed.xFeet.toFixed(1) }} x {{ selectedBed.yFeet.toFixed(1) }} ft
+            {{ selectedBed.widthFeet.toFixed(1) }} x {{ selectedBed.heightFeet.toFixed(1) }} ft
             <span v-if="supportsSelectedBedHeight"> · {{ selectedBed.bedHeightInches }} in tall</span>
           </div>
         </div>

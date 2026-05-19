@@ -1,6 +1,6 @@
-import { netlifyWeatherProvider } from './providers/netlify-weather'
+import { laravelWeatherProvider } from './providers/laravel-weather'
 
-let activeProvider = netlifyWeatherProvider
+let activeProvider = laravelWeatherProvider
 
 export function getActiveWeatherProvider() {
   return activeProvider

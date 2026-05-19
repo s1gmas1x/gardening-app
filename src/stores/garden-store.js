@@ -56,6 +56,7 @@ function buildPersistedSnapshot(state) {
         rotationDegrees: bed.rotationDegrees,
         color: bed.color,
         renderKind: bed.renderKind ?? null,
+        renderTheme: bed.renderTheme ?? null,
         placementMode: bed.placementMode ?? null,
         borderEdge: bed.borderEdge ?? null,
       })),
@@ -79,6 +80,7 @@ function hydrateState(snapshot) {
     ? source.beds.map((bed) => clampBedToGarden({
       ...bed,
       renderKind: bed.renderKind ?? null,
+      renderTheme: bed.renderTheme ?? null,
       placementMode: bed.placementMode ?? null,
       borderEdge: bed.borderEdge ?? null,
     }, dimensions))
