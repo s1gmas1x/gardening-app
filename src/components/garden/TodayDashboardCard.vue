@@ -44,6 +44,10 @@
       <div class="today-widget__date">
         <div class="today-widget__day">{{ todayDayLabel }}</div>
         <div class="today-widget__month">{{ todayMonthLabel }}</div>
+        <div v-if="hasTodayWeatherRange" class="today-widget__weather-inline">
+          <span class="today-widget__weather-inline-high">H {{ formatWhole(todayWeatherHigh) }}°</span>
+          <span class="today-widget__weather-inline-low">L {{ formatWhole(todayWeatherLow) }}°</span>
+        </div>
       </div>
 
       <div class="today-widget__chips q-mt-sm">
@@ -83,7 +87,12 @@
               class="today-widget__summary-badge"
               label="Weather"
             />
-            <span>{{ weatherRisks[0].title }}</span>
+            <span>
+              {{ weatherRisks[0].title }}
+              <small v-if="hasTodayWeatherRange" class="today-widget__weather-range">
+                · H {{ formatWhole(todayWeatherHigh) }}° · L {{ formatWhole(todayWeatherLow) }}°
+              </small>
+            </span>
           </div>
 
           <div
@@ -151,6 +160,14 @@ const props = defineProps({
     type: String,
     required: true,
   },
+  todayWeatherHigh: {
+    type: Number,
+    default: null,
+  },
+  todayWeatherLow: {
+    type: Number,
+    default: null,
+  },
   propagationStatus: {
     type: Array,
     required: true,
@@ -181,6 +198,10 @@ const overdueCount = computed(() => (
 
 const notificationCount = computed(() => (
   props.weatherRisks.length + overdueCount.value
+))
+
+const hasTodayWeatherRange = computed(() => (
+  Number.isFinite(Number(props.todayWeatherHigh)) && Number.isFinite(Number(props.todayWeatherLow))
 ))
 
 const visibleChips = computed(() => ([
@@ -225,6 +246,10 @@ const cardAriaLabel = computed(() => (
   + `${props.propagationStatus.length} tray items, `
   + `${overdueCount.value} overdue.`
 ))
+
+function formatWhole(value) {
+  return Number.isFinite(Number(value)) ? Math.round(Number(value)) : '--'
+}
 </script>
 
 <style scoped>
@@ -303,12 +328,34 @@ const cardAriaLabel = computed(() => (
   color: #687b60;
 }
 
+.today-widget__weather-inline {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #556751;
+}
+
+.today-widget__weather-inline-high {
+  color: #a55d2d;
+}
+
+.today-widget__weather-inline-low {
+  color: #496b88;
+}
+
 .today-widget--map .today-widget__day {
   font-size: 2rem;
 }
 
 .today-widget--map .today-widget__month {
   font-size: 0.72rem;
+}
+
+.today-widget--map .today-widget__weather-inline {
+  gap: 6px;
+  font-size: 0.68rem;
 }
 
 .today-widget__chips {
@@ -347,6 +394,12 @@ const cardAriaLabel = computed(() => (
   padding-top: 2px;
   font-size: 0.72rem;
   color: #778a70;
+}
+
+.today-widget__weather-range {
+  color: #687b60;
+  font-size: 0.72rem;
+  font-weight: 600;
 }
 
 .today-widget--expanded {

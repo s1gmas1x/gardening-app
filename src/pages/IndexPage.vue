@@ -95,6 +95,8 @@
               :upcoming-meta="todayDashboard.upcomingMeta"
               :weather-risks="todayDashboard.weatherRisks"
               :weather-meta="todayDashboard.weatherMeta"
+              :today-weather-high="todayDashboard.todayWeatherHigh"
+              :today-weather-low="todayDashboard.todayWeatherLow"
               :propagation-status="todayDashboard.propagationStatus"
               :propagation-meta="todayDashboard.propagationMeta"
               :tone="activeWorkspaceTab"
@@ -1326,6 +1328,7 @@ const todayDashboard = computed(() => {
         }
       : null,
   ].filter(Boolean)
+  const todayForecast = scheduleStore.dailyForecast[0] ?? null
 
   const transplantReadyItems = traySummaries.value
     .flatMap((tray) => tray.assignments
@@ -1386,6 +1389,8 @@ const todayDashboard = computed(() => {
       : scheduleStore.lastUpdatedAt
         ? `Updated ${formatDateTime(scheduleStore.lastUpdatedAt)}`
         : 'Refresh the sky view to update risk flags',
+    todayWeatherHigh: Number.isFinite(Number(todayForecast?.highTempF)) ? Number(todayForecast.highTempF) : null,
+    todayWeatherLow: Number.isFinite(Number(todayForecast?.lowTempF)) ? Number(todayForecast.lowTempF) : null,
     propagationStatus: [...transplantReadyItems, ...trayLoadItems, ...trayDemandItems]
       .sort(compareDashboardItems)
       .slice(0, 6),
@@ -1592,8 +1597,9 @@ const assistantAlertCount = computed(() => (
 
 .simulation-stage__capture-launcher {
   position: absolute;
-  top: 176px;
-  left: 12px;
+  top: 112px;
+  right: 72px;
+  left: auto;
   z-index: 4;
 }
 
@@ -1605,9 +1611,9 @@ const assistantAlertCount = computed(() => (
 
 .simulation-stage__capture-sheet {
   position: absolute;
-  left: 12px;
-  right: auto;
-  top: 232px;
+  right: 72px;
+  left: auto;
+  top: 168px;
   z-index: 4;
   max-width: min(228px, calc(100vw - 132px));
 }

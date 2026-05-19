@@ -140,8 +140,8 @@
             {{ formatDay(day.date) }}
           </div>
           <div class="weather-card__forecast-temps">
-            <span>{{ formatWhole(day.lowTempF) }}°</span>
-            <span>{{ formatWhole(day.highTempF) }}°</span>
+            <span class="weather-card__forecast-temp weather-card__forecast-temp--high">H {{ formatWhole(day.highTempF) }}°</span>
+            <span class="weather-card__forecast-temp weather-card__forecast-temp--low">L {{ formatWhole(day.lowTempF) }}°</span>
           </div>
           <div class="weather-card__forecast-summary">
             {{ day.summary || day.description || 'Forecast still forming' }}
@@ -381,6 +381,14 @@ function formatTimestamp(value) {
   gap: 8px;
   font-weight: 700;
   color: #253322;
+}
+
+.weather-card__forecast-temp--high {
+  color: #a55d2d;
+}
+
+.weather-card__forecast-temp--low {
+  color: #496b88;
 }
 
 @media (max-width: 640px) {
