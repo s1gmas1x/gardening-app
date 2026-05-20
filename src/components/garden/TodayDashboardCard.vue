@@ -39,6 +39,20 @@
             :aria-label="`${notificationCount} notifications`"
           />
         </div>
+
+        <q-btn
+          v-if="compact"
+          flat
+          round
+          dense
+          size="10px"
+          color="grey-7"
+          icon="close"
+          class="today-widget__close"
+          @click.stop="$emit('collapse')"
+        >
+          <q-tooltip>Hide today panel</q-tooltip>
+        </q-btn>
       </div>
 
       <div class="today-widget__date">
@@ -50,7 +64,7 @@
         </div>
       </div>
 
-      <div class="today-widget__chips q-mt-sm">
+      <div v-if="!compact || isExpanded" class="today-widget__chips q-mt-sm">
         <q-chip
           v-for="chip in visibleChips"
           :key="chip.key"
@@ -180,11 +194,17 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  compact: {
+    type: Boolean,
+    default: false,
+  },
   tone: {
     type: String,
     default: 'layout',
   },
 })
+
+defineEmits(['collapse'])
 
 const isExpanded = ref(false)
 
@@ -272,6 +292,10 @@ function formatWhole(value) {
   display: grid;
   gap: 4px;
   min-height: 142px;
+}
+
+.today-widget__close {
+  margin-left: auto;
 }
 
 .today-widget--map {
@@ -408,6 +432,43 @@ function formatWhole(value) {
 
 .today-widget--map.today-widget--expanded {
   width: min(280px, calc(100vw - 24px));
+}
+
+.today-widget--compact {
+  width: min(160px, calc(100vw - 18px));
+  border-radius: 14px;
+}
+
+.today-widget--compact .today-widget__shell {
+  min-height: 86px;
+  gap: 2px;
+}
+
+.today-widget--compact .today-widget__header {
+  gap: 8px;
+}
+
+.today-widget--compact .today-widget__label {
+  font-size: 0.62rem;
+}
+
+.today-widget--compact .today-widget__day {
+  font-size: 1.72rem;
+}
+
+.today-widget--compact .today-widget__month {
+  font-size: 0.66rem;
+}
+
+.today-widget--compact .today-widget__weather-inline {
+  margin-top: 1px;
+  font-size: 0.64rem;
+}
+
+.today-widget--compact .today-widget__chip {
+  min-height: 24px;
+  padding-inline: 5px;
+  font-size: 0.65rem;
 }
 
 .today-widget--layout {

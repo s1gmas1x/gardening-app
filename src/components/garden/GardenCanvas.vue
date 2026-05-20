@@ -2987,7 +2987,7 @@ function handlePointerUp(event) {
 
 .planner-hint {
   position: absolute;
-  right: 16px;
+  right: 112px;
   bottom: 16px;
   padding: 8px 12px;
   border-radius: 999px;
@@ -2999,9 +2999,9 @@ function handlePointerUp(event) {
 
 .planner-hint--mobile {
   right: 50%;
-  bottom: 18px;
+  bottom: 76px;
   transform: translateX(50%);
-  max-width: calc(100% - 136px);
+  max-width: calc(100% - 164px);
   text-align: center;
 }
 
