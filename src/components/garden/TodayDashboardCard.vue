@@ -6,6 +6,7 @@
     :class="{
       'today-widget--expanded': isExpanded,
       'today-widget--map': mapMode,
+      'today-widget--compact': compact,
       [`today-widget--${tone}`]: true,
     }"
     role="button"
@@ -469,6 +470,38 @@ function formatWhole(value) {
   min-height: 24px;
   padding-inline: 5px;
   font-size: 0.65rem;
+}
+
+.today-widget--compact.today-widget--expanded {
+  width: min(170px, calc(100vw - 18px));
+}
+
+.today-widget--compact.today-widget--expanded .today-widget__shell {
+  min-height: 104px;
+}
+
+.today-widget--compact.today-widget--expanded .today-widget__date {
+  gap: 1px;
+}
+
+.today-widget--compact.today-widget--expanded .today-widget__day {
+  font-size: 1.58rem;
+}
+
+.today-widget--compact.today-widget--expanded .today-widget__chips {
+  display: none;
+}
+
+.today-widget--compact.today-widget--expanded .today-widget__details {
+  gap: 3px;
+}
+
+.today-widget--compact.today-widget--expanded .today-widget__summary-row {
+  font-size: 0.68rem;
+}
+
+.today-widget--compact.today-widget--expanded .today-widget__hint {
+  display: none;
 }
 
 .today-widget--layout {

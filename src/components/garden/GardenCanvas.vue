@@ -2122,12 +2122,21 @@ function getViewportPoint(event) {
   }
 }
 
-function getGardenFeetPoint(event) {
+function getGardenFeetPoint(event, snapToGrid = true) {
   const point = getViewportPoint(event)
+  const xFeet = pixelsToFeet((point.x - viewport.value.panX) / viewport.value.zoom)
+  const yFeet = pixelsToFeet((point.y - viewport.value.panY) / viewport.value.zoom)
+
+  if (!snapToGrid) {
+    return {
+      xFeet,
+      yFeet,
+    }
+  }
 
   return {
-    xFeet: snapToIncrement(pixelsToFeet((point.x - viewport.value.panX) / viewport.value.zoom), currentSnapIncrementFeet.value),
-    yFeet: snapToIncrement(pixelsToFeet((point.y - viewport.value.panY) / viewport.value.zoom), currentSnapIncrementFeet.value),
+    xFeet: snapToIncrement(xFeet, currentSnapIncrementFeet.value),
+    yFeet: snapToIncrement(yFeet, currentSnapIncrementFeet.value),
   }
 }
 
@@ -2258,7 +2267,7 @@ function updatePlacementPreviewFromEvent(event) {
   }
 
   emit('update-placement-preview', {
-    gardenPoint: getGardenFeetPoint(event),
+    gardenPoint: getGardenFeetPoint(event, !props.mobileCaptureMode),
     clientX: event.clientX,
     clientY: event.clientY,
   })
@@ -2274,7 +2283,7 @@ function togglePlacementPreviewLockFromEvent(event) {
   }
 
   emit('toggle-placement-preview-lock', {
-    gardenPoint: getGardenFeetPoint(event),
+    gardenPoint: getGardenFeetPoint(event, !props.mobileCaptureMode),
   })
 }
 

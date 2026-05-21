@@ -86,19 +86,6 @@
         <div class="simulation-shell-overlay">
           <div class="simulation-stage__topbar" :class="`simulation-stage__topbar--${activeWorkspaceTab}`">
             <div class="simulation-stage__topbar-panel">
-              <q-btn
-                v-if="isMobileCaptureMode && !isTodayDashboardOpen"
-                round
-                unelevated
-                color="white"
-                text-color="grey-8"
-                icon="today"
-                class="simulation-stage__today-toggle"
-                @click="isTodayDashboardOpen = true"
-              >
-                <q-tooltip>Open today panel</q-tooltip>
-              </q-btn>
-
               <TodayDashboardCard
                 v-if="!isMobileCaptureMode || isTodayDashboardOpen"
                 class="simulation-stage__today-card"
@@ -137,18 +124,40 @@
               />
 
               <div class="simulation-stage__topbar-actions">
-                <q-chip dense :color="workspaceTheme.chipColor" text-color="white" :icon="workspaceTheme.icon">
+                <q-chip dense :color="workspaceTheme.chipColor" text-color="white">
+                  <GardenUiIcon
+                    :paths="workspaceBadgeIconPaths"
+                    size="18px"
+                    color="#ffffff"
+                    class="simulation-stage__chip-icon"
+                  />
                   {{ activeToolLabel }}
                 </q-chip>
-                <q-btn-dropdown
+                <q-btn
+                  ref="gridMenuTrigger"
                   unelevated
                   rounded
                   color="white"
                   text-color="grey-8"
-                  icon="straighten"
-                  :label="selectedGridScaleLabel"
+                  class="simulation-stage__grid-trigger"
+                  @click="isGridMenuOpen = !isGridMenuOpen"
                 >
-                  <q-list dense>
+                  <div class="simulation-stage__grid-trigger-content">
+                    <GardenUiIcon
+                      :paths="gridIconPaths"
+                      size="18px"
+                      color="#4a5a45"
+                    />
+                    <span>{{ selectedGridScaleLabel }}</span>
+                  </div>
+                </q-btn>
+                <q-menu
+                  v-model="isGridMenuOpen"
+                  anchor="bottom right"
+                  self="top right"
+                  :offset="[0, 10]"
+                >
+                  <q-list dense class="simulation-stage__grid-menu">
                     <q-item clickable v-close-popup @click="selectedGridScale = 'one_foot'">
                       <q-item-section>1 ft grid</q-item-section>
                     </q-item>
@@ -159,7 +168,7 @@
                       <q-item-section>3 in grid</q-item-section>
                     </q-item>
                   </q-list>
-                </q-btn-dropdown>
+                </q-menu>
               </div>
             </div>
           </div>
@@ -200,7 +209,28 @@
           />
 
           <div class="simulation-stage__assistant-rail">
-            <q-btn round unelevated color="dark" text-color="white" icon="smart_toy" @click="openAssistant(assistantDefaultSection)">
+            <q-btn
+              v-if="isMobileCaptureMode && !isTodayDashboardOpen"
+              round
+              unelevated
+              color="white"
+              text-color="grey-8"
+              class="simulation-stage__today-toggle"
+              @click="isTodayDashboardOpen = true"
+            >
+              <GardenUiIcon
+                :paths="todayRailIconPaths"
+                size="30px"
+                color="#4a5a45"
+              />
+              <q-tooltip>Open today panel</q-tooltip>
+            </q-btn>
+            <q-btn round unelevated color="dark" text-color="white" @click="openAssistant(assistantDefaultSection)">
+              <GardenUiIcon
+                :paths="assistantHomeIconPaths"
+                size="32px"
+                color="#ffffff"
+              />
               <q-tooltip>Open Garden Assistant</q-tooltip>
               <q-badge
                 v-if="assistantAlertCount"
@@ -217,9 +247,13 @@
               unelevated
               color="white"
               text-color="grey-8"
-              :icon="button.icon"
               @click="openAssistant(button.section)"
             >
+              <GardenUiIcon
+                :paths="button.iconPaths"
+                size="30px"
+                color="#4a5a45"
+              />
               <q-tooltip>{{ button.tooltip }}</q-tooltip>
             </q-btn>
           </div>
@@ -277,6 +311,7 @@ import GardenBuildOverlay from 'src/components/garden/GardenBuildOverlay.vue'
 import GardenCanvas from 'src/components/garden/GardenCanvas.vue'
 import GardenCapturePalette from 'src/components/garden/GardenCapturePalette.vue'
 import GardenDimensionsDialog from 'src/components/garden/GardenDimensionsDialog.vue'
+import GardenUiIcon from 'src/components/garden/GardenUiIcon.vue'
 import TodayDashboardCard from 'src/components/garden/TodayDashboardCard.vue'
 import GardenSetupForm from 'src/components/garden/GardenSetupForm.vue'
 import { useAssistantUiModel } from 'src/composables/useAssistantUiModel'
@@ -325,11 +360,34 @@ const workspaceTheme = computed(() => (
           icon: 'eco',
         }
       : {
-          accentColor: 'primary',
-          chipColor: 'primary',
-          icon: 'spa',
-        }
+        accentColor: 'primary',
+        chipColor: 'primary',
+        icon: 'spa',
+      }
 ))
+const workspaceBadgeIconPaths = computed(() => (
+  activeWorkspaceTab.value === 'layout'
+    ? [
+        { d: 'M7 7H17V17H7V7Z' },
+        { d: 'M12 7V17' },
+        { d: 'M7 12H17' },
+      ]
+    : activeWorkspaceTab.value === 'plan'
+      ? [
+          { d: 'M8.2 15.4C10.9 13.8 12 10.8 16 8.8C15.7 13 12.6 16 8.8 16C8.3 16 7.8 15.8 8.2 15.4Z' },
+          { d: 'M10.5 15.4L13.5 12.4' },
+        ]
+      : [
+          { d: 'M12 7V18' },
+          { d: 'M8.4 11.2C8.4 8.9 10.1 7.2 12.4 7.2C14.7 7.2 16.4 8.9 16.4 11.2C16.4 13.5 14.7 15.2 12.4 15.2C10.1 15.2 8.4 13.5 8.4 11.2Z' },
+          { d: 'M9.8 12.5L11.8 14.1L15 10.3' },
+        ]
+))
+const gridIconPaths = [
+  { d: 'M7 7H17V17H7V7Z' },
+  { d: 'M12 7V17' },
+  { d: 'M7 12H17' },
+]
 const palettePrimaryTools = computed(() => (
   activeWorkspaceTab.value === 'layout'
     ? [
@@ -372,6 +430,19 @@ const dimensions = reactive({
   widthFeet: gardenStore.widthFeet,
   lengthFeet: gardenStore.lengthFeet,
 })
+const todayRailIconPaths = [
+  { d: 'M7 8.5H17V18H7V8.5Z' },
+  { d: 'M7 11H17' },
+  { d: 'M9 5.5V8' },
+  { d: 'M15 5.5V8' },
+  { d: 'M10.5 13.5L11.8 11.7L13 13.1L14.6 10.8' },
+]
+const assistantHomeIconPaths = [
+  { d: 'M12 4.5L19 9.8V19H5V9.8L12 4.5Z' },
+  { d: 'M9 19V12H15V19' },
+  { d: 'M10.2 14H13.8' },
+]
+const isGridMenuOpen = ref(false)
 
 watch(
   () => [gardenStore.widthFeet, gardenStore.lengthFeet],
@@ -880,16 +951,16 @@ const {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
     grid-template-rows: auto auto;
-    gap: 8px 10px;
+    gap: 6px 8px;
     align-items: start;
   }
 
   .simulation-stage__topbar-panel {
     grid-template-columns: auto minmax(0, 1fr);
     grid-template-rows: auto auto;
-    width: min(100%, calc(100vw - 20px));
-    padding: 8px;
-    gap: 8px 10px;
+    width: min(100%, calc(100vw - 16px));
+    padding: 6px;
+    gap: 6px 8px;
   }
 
   .simulation-stage__today-toggle,
@@ -900,7 +971,7 @@ const {
   }
 
   .simulation-stage__today-card {
-    width: min(160px, calc(100vw - 18px));
+    width: min(138px, calc(100vw - 16px));
   }
 
   .simulation-stage__nav-toggle {
@@ -915,16 +986,45 @@ const {
     grid-row: 2;
     width: 100%;
     justify-items: stretch;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
   }
+
+.simulation-stage__chip-icon {
+  margin-right: 6px;
+}
+
+.simulation-stage__grid-trigger {
+  min-width: 0;
+}
+
+.simulation-stage__grid-trigger-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.simulation-stage__grid-menu {
+  min-width: 140px;
+}
 
   .simulation-stage__topbar-actions :deep(.q-btn),
   .simulation-stage__topbar-actions :deep(.q-chip) {
     width: 100%;
+    min-width: 0;
   }
 
   .simulation-stage__assistant-rail {
-    top: 132px;
+    top: 126px;
+    right: 8px;
     bottom: auto;
+    gap: 8px;
+    padding: 8px 7px;
+  }
+
+  .simulation-stage__assistant-rail :deep(.q-btn) {
+    min-width: 48px;
+    min-height: 48px;
   }
 }
 
