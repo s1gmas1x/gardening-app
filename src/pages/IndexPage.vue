@@ -29,7 +29,7 @@
                     :active-tool="activeCanvasTool"
                     :grid-scale="selectedGridScale"
                     :placement-preview="activeWorkspaceTab === 'layout' ? pendingPlacement : null"
-                    :placement-preview-locked="activeWorkspaceTab === 'layout' ? isPendingPlacementPinned : false"
+                    :placement-preview-locked="activeWorkspaceTab === 'layout' ? (!isMobileCaptureMode && isPendingPlacementPinned) : false"
                     workspace-mode="layout"
                     @change-tool="activeCanvasTool = $event"
                     @request-measurement="handleMeasurementRequest"
