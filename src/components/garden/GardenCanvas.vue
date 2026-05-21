@@ -2298,12 +2298,10 @@ function handleViewportPointerDown(event) {
   }
 
   if (props.placementPreview) {
-    if (event.pointerType === 'touch') {
-      updatePlacementPreviewFromEvent(event)
-      pointerState.mode = 'placement'
-      pointerState.pointerId = event.pointerId
-      viewportRef.value?.setPointerCapture(event.pointerId)
-    }
+    updatePlacementPreviewFromEvent(event)
+    pointerState.mode = 'placement'
+    pointerState.pointerId = event.pointerId
+    viewportRef.value?.setPointerCapture(event.pointerId)
 
     return
   }
@@ -2338,12 +2336,10 @@ function handleBedPointerDown(event, bedId) {
   }
 
   if (props.placementPreview) {
-    if (event.pointerType === 'touch') {
-      updatePlacementPreviewFromEvent(event)
-      pointerState.mode = 'placement'
-      pointerState.pointerId = event.pointerId
-      viewportRef.value?.setPointerCapture(event.pointerId)
-    }
+    updatePlacementPreviewFromEvent(event)
+    pointerState.mode = 'placement'
+    pointerState.pointerId = event.pointerId
+    viewportRef.value?.setPointerCapture(event.pointerId)
 
     return
   }
@@ -2401,10 +2397,7 @@ function handlePointerMove(event) {
   }
 
   if (props.placementPreview) {
-    if (
-      !props.placementPreviewLocked
-      && (event.pointerType !== 'touch' || pointerState.mode === 'placement' || pointerState.pointerId === event.pointerId)
-    ) {
+    if (!props.placementPreviewLocked) {
       updatePlacementPreviewFromEvent(event)
     }
 
@@ -2508,6 +2501,7 @@ function handlePointerUp(event) {
   height: 100%;
   min-height: 560px;
   display: block;
+  touch-action: none;
 }
 
 .planner-viewport--mobile-capture .planner-svg {
