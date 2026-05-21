@@ -1754,7 +1754,7 @@ function finishGuidedTransplant() {
 }
 
 function getPreviewSvgPoint(event) {
-  const svg = event.currentTarget
+  const svg = event.currentTarget?.querySelector?.('svg') ?? null
 
   if (!svg) {
     return null

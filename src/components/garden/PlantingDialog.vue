@@ -203,16 +203,19 @@
           </div>
         </div>
 
-        <div class="planting-dialog__preview-shell">
+        <div
+          class="planting-dialog__preview-shell"
+          @pointerdown.stop.prevent="$emit('preview-pointerdown', $event)"
+          @pointermove.stop.prevent="$emit('preview-pointermove', $event)"
+          @pointerup.stop.prevent="$emit('preview-pointerup', $event)"
+          @pointerleave.stop.prevent="$emit('preview-pointerleave', $event)"
+          @pointercancel.stop.prevent="$emit('preview-pointerup', $event)"
+        >
           <svg
             class="planting-preview"
             :viewBox="`0 0 ${plantingPreviewLayout.width} ${plantingPreviewLayout.height}`"
             preserveAspectRatio="xMinYMin meet"
             :style="{ aspectRatio: `${plantingPreviewLayout.width} / ${plantingPreviewLayout.height}` }"
-            @pointerdown="$emit('preview-pointerdown', $event)"
-            @pointermove="$emit('preview-pointermove', $event)"
-            @pointerup="$emit('preview-pointerup', $event)"
-            @pointerleave="$emit('preview-pointerleave', $event)"
           >
             <g :transform="`translate(${plantingPreviewLayout.padding} ${plantingPreviewLayout.padding})`">
               <ellipse
@@ -686,6 +689,7 @@ defineEmits([
   border-radius: 18px;
   background: linear-gradient(180deg, #f8f5ea, #eef3e5);
   border: 1px solid rgba(78, 101, 72, 0.16);
+  touch-action: none;
 }
 
 .planting-preview {
