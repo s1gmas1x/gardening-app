@@ -138,6 +138,7 @@
         <g
           v-for="bed in beds"
           :key="bed.id"
+          v-show="props.placementPreview?.existingBedId !== bed.id"
           class="bed-group"
           :class="[
             `bed-group--${bed.type}`,
@@ -383,7 +384,7 @@
 
     <div
       v-if="selectedBed && !placementPreview"
-      class="bed-context-menu"
+      class="bed-context-menu-shell"
       :class="{ 'bed-context-menu--mobile': mobileCaptureMode }"
       :style="selectedBedMenuStyle"
       @pointerdown.stop
@@ -398,83 +399,149 @@
         text-color="grey-8"
         class="bed-context-menu__dimension"
         :label="selectedBedDimensionLabel"
+        :disable="selectedBed.locked"
         @click="isQuickMeasureOpen = true"
       >
-        <q-tooltip>Quick edit dimensions</q-tooltip>
+        <q-tooltip>{{ selectedBed.locked ? 'Unlock zone to edit dimensions' : 'Quick edit dimensions' }}</q-tooltip>
       </q-btn>
-      <q-btn
-        round
-        dense
-        unelevated
-        size="12px"
-        icon="open_with"
-        :color="activeTool === 'move' ? 'positive' : 'white'"
-        :text-color="activeTool === 'move' ? 'white' : 'grey-8'"
-        @click="emit('change-tool', 'move')"
-      >
-        <q-tooltip>Move zone</q-tooltip>
-      </q-btn>
-      <q-btn
-        round
-        dense
-        unelevated
-        size="12px"
-        icon="zoom_out_map"
-        :color="activeTool === 'resize' ? 'positive' : 'white'"
-        :text-color="activeTool === 'resize' ? 'white' : 'grey-8'"
-        @click="emit('change-tool', 'resize')"
-      >
-        <q-tooltip>Resize zone</q-tooltip>
-      </q-btn>
-      <q-btn
-        round
-        dense
-        unelevated
-        size="12px"
-        icon="rotate_90_degrees_cw"
-        :color="activeTool === 'rotate' ? 'positive' : 'white'"
-        :text-color="activeTool === 'rotate' ? 'white' : 'grey-8'"
-        @click="rotateSelectedBed()"
-      >
-        <q-tooltip>Rotate zone</q-tooltip>
-      </q-btn>
-      <q-btn
-        v-if="supportsPlanting"
-        round
-        dense
-        unelevated
-        size="12px"
-        icon="eco"
-        :color="activeTool === 'plant' ? 'positive' : 'white'"
-        :text-color="activeTool === 'plant' ? 'white' : 'grey-8'"
-        @click="openPlantingFromTool()"
-      >
-        <q-tooltip>Plant this zone</q-tooltip>
-      </q-btn>
-      <q-btn
-        round
-        dense
-        unelevated
-        size="12px"
-        icon="tune"
-        color="white"
-        text-color="grey-8"
-        @click="isBedDetailsOpen = true"
-      >
-        <q-tooltip>Zone details</q-tooltip>
-      </q-btn>
-      <q-btn
-        round
-        dense
-        unelevated
-        size="12px"
-        icon="delete"
-        color="negative"
-        text-color="white"
-        @click="gardenStore.removeSelectedBed()"
-      >
-        <q-tooltip>Delete zone</q-tooltip>
-      </q-btn>
+
+      <div class="bed-context-menu">
+        <div class="bed-context-menu__primary">
+          <q-btn
+            v-if="canEditZones"
+            round
+            dense
+            unelevated
+            size="12px"
+            :color="activeTool === 'move' ? 'positive' : 'white'"
+            :text-color="activeTool === 'move' ? 'white' : 'grey-8'"
+            @click="emit('move-selected-bed-with-preview', selectedBed.id)"
+          >
+            <GardenUiIcon
+              :paths="moveIconPaths"
+              size="26px"
+              color="currentColor"
+            />
+            <q-tooltip>Move zone</q-tooltip>
+          </q-btn>
+          <q-btn
+            v-if="canEditZones"
+            round
+            dense
+            unelevated
+            size="12px"
+            :color="activeTool === 'resize' ? 'positive' : 'white'"
+            :text-color="activeTool === 'resize' ? 'white' : 'grey-8'"
+            @click="handleResizeToolClick()"
+          >
+            <GardenUiIcon
+              :paths="resizeIconPaths"
+              size="26px"
+              color="currentColor"
+            />
+            <q-tooltip>Resize zone</q-tooltip>
+          </q-btn>
+          <q-btn
+            v-if="canEditZones"
+            round
+            dense
+            unelevated
+            size="12px"
+            :color="activeTool === 'rotate' ? 'positive' : 'white'"
+            :text-color="activeTool === 'rotate' ? 'white' : 'grey-8'"
+            @click="rotateSelectedBed()"
+          >
+            <GardenUiIcon
+              :paths="rotateIconPaths"
+              size="26px"
+              color="currentColor"
+            />
+            <q-tooltip>Rotate zone</q-tooltip>
+          </q-btn>
+          <q-btn
+            v-if="supportsPlanting"
+            round
+            dense
+            unelevated
+            size="12px"
+            :color="activeTool === 'plant' ? 'positive' : 'white'"
+            :text-color="activeTool === 'plant' ? 'white' : 'grey-8'"
+            @click="openPlantingFromTool()"
+          >
+            <GardenUiIcon
+              :paths="plantIconPaths"
+              size="26px"
+              color="currentColor"
+            />
+            <q-tooltip>Plant this zone</q-tooltip>
+          </q-btn>
+        </div>
+
+        <div class="bed-context-menu__secondary">
+          <q-btn
+            v-if="canEditZones"
+            dense
+            no-caps
+            rounded
+            unelevated
+            color="white"
+            text-color="grey-8"
+            class="bed-context-menu__secondary-btn"
+            @click="gardenStore.toggleBedLock(selectedBed.id)"
+          >
+            <span class="bed-context-menu__secondary-content">
+              <GardenUiIcon
+                :paths="selectedBed.locked ? lockIconPaths : unlockIconPaths"
+                size="24px"
+                color="currentColor"
+              />
+              <span>{{ selectedBed.locked ? 'Unlock' : 'Lock' }}</span>
+            </span>
+            <q-tooltip>{{ selectedBed.locked ? 'Unlock zone' : 'Lock zone in place' }}</q-tooltip>
+          </q-btn>
+          <q-btn
+            dense
+            no-caps
+            rounded
+            unelevated
+            color="white"
+            text-color="grey-8"
+            class="bed-context-menu__secondary-btn"
+            @click="isBedDetailsOpen = true"
+          >
+            <span class="bed-context-menu__secondary-content">
+              <GardenUiIcon
+                :paths="detailsIconPaths"
+                size="24px"
+                color="currentColor"
+              />
+              <span>Details</span>
+            </span>
+            <q-tooltip>Zone details</q-tooltip>
+          </q-btn>
+          <q-btn
+            v-if="canEditZones"
+            dense
+            no-caps
+            rounded
+            unelevated
+            color="negative"
+            text-color="white"
+            class="bed-context-menu__secondary-btn"
+            @click="gardenStore.removeSelectedBed()"
+          >
+            <span class="bed-context-menu__secondary-content">
+              <GardenUiIcon
+                :paths="deleteIconPaths"
+                size="24px"
+                color="currentColor"
+              />
+              <span>Delete</span>
+            </span>
+            <q-tooltip>Delete zone</q-tooltip>
+          </q-btn>
+        </div>
+      </div>
     </div>
 
     <div
@@ -495,6 +562,7 @@
         :supports-selected-bed-height="supportsSelectedBedHeight"
         :type-label="getBedTypeMeta(selectedBed.type).label"
         :bed-type-select-options="bedTypeSelectOptions"
+        :allow-layout-editing="canEditZones"
         :sheet-mode="mobileCaptureMode"
         :show-plant-action="supportsPlanting"
         :plant-action-label="plantActionLabel"
@@ -504,6 +572,7 @@
         @update-length="gardenStore.updateBed(selectedBed.id, { heightFeet: $event })"
         @update-height="gardenStore.updateBed(selectedBed.id, { bedHeightInches: $event })"
         @rotate="rotateSelectedBed"
+        @toggle-lock="gardenStore.toggleBedLock(selectedBed.id)"
         @close="isBedDetailsOpen = false"
         @delete="gardenStore.removeSelectedBed"
         @plant="openPlantingDialog"
@@ -578,6 +647,8 @@
       :crop-plan-method-options="cropPlanMethodOptions"
       :planting-layout-mode="plantingLayoutMode"
       :planting-mode="plantingMode"
+      :planting-row-axis="plantingRowAxis"
+      :planting-row-action="plantingRowAction"
       :free-placement-snap="freePlacementSnap"
       :free-placement-conflict-count="freePlacementConflictCount"
       :free-placement-boundary-count="freePlacementBoundaryCount"
@@ -588,8 +659,10 @@
       :guided-transplant-placed-count="guidedTransplantPlacedCount"
       :guided-suggested-plantings="guidedSuggestedPlantings"
       :planting-preview-layout="plantingPreviewLayout"
+      :current-grid-minor-step-feet="currentGridMinorStepFeet"
       :planting-points="plantingPoints"
       :hovered-planting-point="hoveredPlantingPoint"
+      :hovered-planting-row-points="hoveredPlantingRowPoints"
       :preview-plantings="previewPlantings"
       :selected-preview-planting="selectedPreviewPlanting"
       :selected-preview-planting-id="selectedPreviewPlantingId"
@@ -613,6 +686,8 @@
       @place-planned="placePlannedPlantings"
       @update:plantingLayoutMode="plantingLayoutMode = $event"
       @update:plantingMode="plantingMode = $event"
+      @update:plantingRowAxis="plantingRowAxis = $event"
+      @update:plantingRowAction="plantingRowAction = $event"
       @update:freePlacementSnap="freePlacementSnap = $event"
       @fill-all="fillAllPlantingPoints"
       @place-guided-suggested="placeGuidedSuggestedPlantings"
@@ -636,6 +711,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import BedEditorCard from 'src/components/garden/BedEditorCard.vue'
+import GardenUiIcon from 'src/components/garden/GardenUiIcon.vue'
 import PlantingDialog from 'src/components/garden/PlantingDialog.vue'
 import { useGardenStore } from 'src/stores/garden-store'
 import { usePlantStore } from 'src/stores/plant-store'
@@ -694,7 +770,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['finish-guided-transplant', 'cancel-guided-transplant', 'change-tool', 'request-measurement', 'update-placement-preview', 'toggle-placement-preview-lock'])
+const emit = defineEmits(['finish-guided-transplant', 'cancel-guided-transplant', 'change-tool', 'request-measurement', 'update-placement-preview', 'toggle-placement-preview-lock', 'move-selected-bed-with-preview'])
 
 const gardenStore = useGardenStore()
 const plantStore = usePlantStore()
@@ -703,6 +779,63 @@ const { beds, gardenDimensions, selectedBed, selectedBedId, viewport } = storeTo
 const { defaultPlantId, plantOptions } = storeToRefs(plantStore)
 
 const viewportRef = ref(null)
+const moveIconPaths = [
+  { d: 'M12 5.5V18.5', strokeWidth: 1.9 },
+  { d: 'M5.5 12H18.5', strokeWidth: 1.9 },
+  { d: 'M12 5.5L9.6 7.9', strokeWidth: 1.9 },
+  { d: 'M12 5.5L14.4 7.9', strokeWidth: 1.9 },
+  { d: 'M12 18.5L9.6 16.1', strokeWidth: 1.9 },
+  { d: 'M12 18.5L14.4 16.1', strokeWidth: 1.9 },
+  { d: 'M5.5 12L7.9 9.6', strokeWidth: 1.9 },
+  { d: 'M5.5 12L7.9 14.4', strokeWidth: 1.9 },
+  { d: 'M18.5 12L16.1 9.6', strokeWidth: 1.9 },
+  { d: 'M18.5 12L16.1 14.4', strokeWidth: 1.9 },
+]
+const resizeIconPaths = [
+  { d: 'M7 9V7H9', strokeWidth: 1.9 },
+  { d: 'M15 7H17V9', strokeWidth: 1.9 },
+  { d: 'M17 15V17H15', strokeWidth: 1.9 },
+  { d: 'M9 17H7V15', strokeWidth: 1.9 },
+  { d: 'M7 7L10.2 10.2', strokeWidth: 1.9 },
+  { d: 'M17 7L13.8 10.2', strokeWidth: 1.9 },
+  { d: 'M17 17L13.8 13.8', strokeWidth: 1.9 },
+  { d: 'M7 17L10.2 13.8', strokeWidth: 1.9 },
+]
+const rotateIconPaths = [
+  { d: 'M8.15 9.15A5.25 5.25 0 1 1 8.3 15.05', strokeWidth: 1.9 },
+  { d: 'M8.05 5.95V9.55H11.65', strokeWidth: 1.9 },
+]
+const plantIconPaths = [
+  { d: 'M12 18.25V12.35', strokeWidth: 1.9 },
+  { d: 'M11.95 12.6C10.15 12.55 8.75 11.15 8.75 9.35C10.65 9.35 12 10.7 12 12.6Z', strokeWidth: 1.9, strokeLinejoin: 'round' },
+  { d: 'M12.05 11.6C12.05 9.55 13.65 7.95 15.7 7.95C15.7 10 14.1 11.6 12.05 11.6Z', strokeWidth: 1.9, strokeLinejoin: 'round' },
+  { d: 'M9 18.25H15', strokeWidth: 1.9 },
+]
+const lockIconPaths = [
+  { d: 'M8 11V8.75C8 6.68 9.79 5 12 5C14.21 5 16 6.68 16 8.75V11', strokeWidth: 1.9 },
+  { d: 'M7.5 11.25H16.5V18H7.5Z', strokeWidth: 1.9, strokeLinejoin: 'round' },
+  { d: 'M12 13.7V15.75', strokeWidth: 1.9 },
+]
+const unlockIconPaths = [
+  { d: 'M8 11V8.85C8 6.72 9.79 5 12 5C13.63 5 15.02 5.92 15.63 7.25', strokeWidth: 1.9 },
+  { d: 'M7.5 11.25H16.5V18H7.5Z', strokeWidth: 1.9, strokeLinejoin: 'round' },
+  { d: 'M12 13.7V15.75', strokeWidth: 1.9 },
+]
+const detailsIconPaths = [
+  { d: 'M7.25 8.25H16.75', strokeWidth: 1.9 },
+  { d: 'M7.25 12H16.75', strokeWidth: 1.9 },
+  { d: 'M7.25 15.75H13.5', strokeWidth: 1.9 },
+  { d: 'M5.5 5.75H18.5V18.25H5.5Z', strokeWidth: 1.9, strokeLinejoin: 'round' },
+]
+const deleteIconPaths = [
+  { d: 'M8.5 8.75H15.5', strokeWidth: 1.9 },
+  { d: 'M9.25 8.75V16.75', strokeWidth: 1.9 },
+  { d: 'M12 8.75V16.75', strokeWidth: 1.9 },
+  { d: 'M14.75 8.75V16.75', strokeWidth: 1.9 },
+  { d: 'M7.75 6.5H16.25', strokeWidth: 1.9 },
+  { d: 'M10.25 6.5V5.5H13.75V6.5', strokeWidth: 1.9 },
+  { d: 'M8.5 8.75L8.95 18H15.05L15.5 8.75', strokeWidth: 1.9, strokeLinejoin: 'round' },
+]
 const bedTypeSelectOptions = [
   { label: 'Regular Bed', value: 'regular' },
   { label: 'Raised Bed', value: 'raised' },
@@ -746,11 +879,13 @@ const isPlantingDialogOpen = ref(false)
 const selectedPlantId = ref(defaultPlantId.value)
 const plantingMode = ref('single')
 const plantingLayoutMode = ref('grid')
+const plantingRowAxis = ref('horizontal')
+const plantingRowAction = ref('add')
 const freePlacementSnap = ref(true)
 const cropPlanMethodOptions = [
   { label: 'Direct Sow', value: 'direct_sow' },
-  { label: 'Transplant', value: 'transplant' },
-  { label: 'Indoor Start', value: 'indoor_start' },
+  { label: 'From My Trays', value: 'indoor_start' },
+  { label: 'From Purchased Starts', value: 'transplant' },
 ]
 const hoveredPlantingPoint = ref(null)
 const selectedPreviewPlantingId = ref(null)
@@ -797,15 +932,21 @@ const currentSnapIncrementFeet = computed(() => (
       : 1
 ))
 const viewportTouchAction = computed(() => (props.activeTool === 'move' ? 'none' : 'pan-y'))
+const canEditZones = computed(() => props.workspaceMode === 'layout')
 const supportsSelectedBedHeight = computed(() => bedSupportsHeight(selectedBed.value?.type))
 const supportsPlanting = computed(() => props.workspaceMode !== 'layout')
 const plantActionLabel = computed(() => (
-  props.workspaceMode === 'current' ? 'Update Garden Planting' : 'Plan This Zone'
+  props.workspaceMode === 'current'
+    ? 'Update Garden Planting'
+    : props.workspaceMode === 'plan'
+      ? 'Plan Crops In This Zone'
+      : 'Plan This Zone'
 ))
 const selectedBedDimensionLabel = computed(() => (
   selectedBed.value
     ? `${selectedBed.value.widthFeet.toFixed(1)} x ${selectedBed.value.heightFeet.toFixed(1)} ft`
       + (supportsSelectedBedHeight.value ? ` · ${selectedBed.value.bedHeightInches} in` : '')
+      + (selectedBed.value.locked ? ' · Locked' : '')
     : ''
 ))
 const toolHint = computed(() => {
@@ -837,6 +978,14 @@ const toolHint = computed(() => {
     return 'Walk the garden, drop rough beds and pots, then refine their shape as you go'
   }
 
+  if (props.workspaceMode === 'plan') {
+    if (props.activeTool === 'measure') {
+      return 'Tap the canvas to check spacing and bed dimensions while you plan crops'
+    }
+
+    return 'Tap a zone to open its planting plan and shape what will grow there'
+  }
+
   if (props.activeTool === 'resize') {
     return 'Drag a selected zone to resize its footprint'
   }
@@ -850,7 +999,9 @@ const toolHint = computed(() => {
   }
 
   if (props.activeTool === 'plant') {
-    return 'Tap a zone to open its planting plan'
+    return props.workspaceMode === 'current'
+      ? 'Tap a zone to update what is growing there now'
+      : 'Tap a zone to open its crop plan'
   }
 
   return 'Drag zones to move them, or drag empty space to roam the map'
@@ -940,6 +1091,13 @@ const plantingPoints = computed(() => {
   }
 
   return getAreaPlantingPoints(selectedBed.value, selectedPlantId.value)
+})
+const hoveredPlantingRowPoints = computed(() => {
+  if (plantingLayoutMode.value !== 'grid' || plantingMode.value !== 'row' || !hoveredPlantingPoint.value) {
+    return []
+  }
+
+  return getRowPoints(hoveredPlantingPoint.value)
 })
 const previewPlantings = computed(() => {
   if (!selectedBed.value) {
@@ -1050,7 +1208,7 @@ const selectedBedMenuStyle = computed(() => {
   }
 
   const panelWidth = 264
-  const panelHeight = supportsSelectedBedHeight.value ? 252 : 224
+  const panelHeight = props.mobileCaptureMode ? 154 : 132
   const edgePadding = 12
   const offset = 18
   const { zoom, panX, panY } = viewport.value
@@ -1063,7 +1221,13 @@ const selectedBedMenuStyle = computed(() => {
   const unclampedLeft = shouldFlipLeft
     ? bedLeft - panelWidth - offset
     : bedLeft + bedWidth + offset
-  const unclampedTop = bedTop + bedHeight / 2 - panelHeight / 2
+  const unclampedTop = props.mobileCaptureMode
+    ? (
+        bedTop - panelHeight - offset >= edgePadding
+          ? bedTop - panelHeight - offset
+          : bedTop + bedHeight + offset
+      )
+    : bedTop + bedHeight / 2 - panelHeight / 2
 
   return {
     left: `${clamp(unclampedLeft, edgePadding, Math.max(viewportSize.width - panelWidth - edgePadding, edgePadding))}px`,
@@ -1552,7 +1716,7 @@ function getBedRenderTransform(bed) {
 }
 
 function rotateSelectedBed() {
-  if (!selectedBed.value) {
+  if (!selectedBed.value || selectedBed.value.locked) {
     return
   }
 
@@ -1570,8 +1734,17 @@ function openPlantingFromTool() {
   openPlantingDialog()
 }
 
+function handleResizeToolClick() {
+  if (props.mobileCaptureMode) {
+    isQuickMeasureOpen.value = true
+    return
+  }
+
+  emit('change-tool', 'resize')
+}
+
 function applyQuickDimensions() {
-  if (!selectedBed.value) {
+  if (!selectedBed.value || selectedBed.value.locked) {
     return
   }
 
@@ -1591,6 +1764,8 @@ function openPlantingDialog() {
   isPlantingDialogOpen.value = true
   plantingMode.value = 'single'
   plantingLayoutMode.value = 'grid'
+  plantingRowAxis.value = 'horizontal'
+  plantingRowAction.value = 'add'
   resetPreviewDrag()
   resetFreeDrag()
 }
@@ -1690,6 +1865,45 @@ function applyPlantToPoints(targetPoints) {
     ...currentPlantings,
     ...targetPoints.map((point) => buildPlanting(point, selectedPlantId.value)),
   ])
+}
+
+function clearPlantFromPoints(targetPoints) {
+  if (!selectedBed.value || !targetPoints.length) {
+    return
+  }
+
+  const pointKeys = new Set(targetPoints.map((point) => getPointKey(point)))
+  setSelectedBedPlantings(
+    getBedPlantings(selectedBed.value).filter((planting) => !pointKeys.has(getPointKey(planting))),
+  )
+}
+
+function getRowPoints(targetPoint) {
+  const targetValue = plantingRowAxis.value === 'horizontal' ? targetPoint.yFeet : targetPoint.xFeet
+
+  return plantingPoints.value.filter((point) => {
+    const pointValue = plantingRowAxis.value === 'horizontal' ? point.yFeet : point.xFeet
+    return Math.abs(pointValue - targetValue) < 0.0001
+  })
+}
+
+function togglePlantingRowAtPoint(point) {
+  if (!selectedBed.value || !selectedPlantId.value) {
+    return
+  }
+
+  const rowPoints = getRowPoints(point)
+
+  if (!rowPoints.length) {
+    return
+  }
+
+  if (plantingRowAction.value === 'remove') {
+    clearPlantFromPoints(rowPoints)
+    return
+  }
+
+  applyPlantToPoints(rowPoints)
 }
 
 function placePlannedPlantings() {
@@ -1976,6 +2190,17 @@ function handlePlantingPreviewPointerDown(event) {
     return
   }
 
+  if (plantingMode.value === 'row') {
+    const nearestPoint = findNearestPlantingPoint(svgPoint)
+    hoveredPlantingPoint.value = nearestPoint
+
+    if (nearestPoint) {
+      togglePlantingRowAtPoint(nearestPoint)
+    }
+
+    return
+  }
+
   previewDragState.active = true
   previewDragState.startX = svgPoint.x
   previewDragState.startY = svgPoint.y
@@ -2004,7 +2229,7 @@ function handlePlantingPreviewPointerMove(event) {
     return
   }
 
-  hoveredPlantingPoint.value = plantingMode.value === 'single'
+  hoveredPlantingPoint.value = plantingMode.value === 'single' || plantingMode.value === 'row'
     ? findNearestPlantingPoint(svgPoint)
     : null
 
@@ -2352,6 +2577,9 @@ function handleBedPointerDown(event, bedId) {
   }
 
   if (props.activeTool === 'rotate') {
+    if (bed.locked) {
+      return
+    }
     rotateSelectedBed()
     return
   }
@@ -2371,6 +2599,14 @@ function handleBedPointerDown(event, bedId) {
   }
 
   if (props.activeTool !== 'move' && props.activeTool !== 'resize') {
+    return
+  }
+
+  if (!canEditZones.value) {
+    return
+  }
+
+  if (bed.locked) {
     return
   }
 
@@ -2711,26 +2947,68 @@ function handlePointerUp(event) {
   fill: rgba(36, 52, 31, 0.78);
 }
 
-.bed-context-menu {
+.bed-context-menu-shell {
   position: absolute;
   z-index: 3;
-  display: flex;
+  display: grid;
+  gap: 8px;
+}
+
+.bed-context-menu {
+  display: grid;
   gap: 6px;
   padding: 8px;
-  border-radius: 999px;
+  border-radius: 18px;
   background: rgba(255, 252, 244, 0.92);
   box-shadow: 0 14px 28px rgba(37, 51, 34, 0.16);
   backdrop-filter: blur(14px);
 }
 
+.bed-context-menu__primary {
+  display: flex;
+  gap: 6px;
+}
+
+.bed-context-menu__secondary {
+  display: flex;
+  gap: 6px;
+}
+
+.bed-context-menu__secondary-btn {
+  min-width: 0;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.bed-context-menu__secondary-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .bed-context-menu--mobile {
   max-width: calc(100% - 24px);
+}
+
+.bed-context-menu--mobile .bed-context-menu {
+  width: min(264px, calc(100vw - 24px));
+}
+
+.bed-context-menu--mobile .bed-context-menu__primary {
   overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.bed-context-menu--mobile .bed-context-menu__secondary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .bed-context-menu__dimension {
   padding-inline: 8px;
   font-weight: 700;
+  justify-self: start;
+  box-shadow: 0 10px 20px rgba(37, 51, 34, 0.12);
 }
 
 .bed-dimension-readout {
@@ -2767,78 +3045,6 @@ function handlePointerUp(event) {
 .dimension-quick-edit__body {
   display: grid;
   gap: 12px;
-}
-
-.bed-editor {
-  position: absolute;
-  z-index: 2;
-  width: 264px;
-  border-radius: 14px;
-  background: rgba(255, 252, 244, 0.94);
-  backdrop-filter: blur(14px);
-  box-shadow: 0 14px 28px rgba(37, 51, 34, 0.16);
-}
-
-.bed-editor__section {
-  padding: 12px;
-  display: grid;
-  gap: 10px;
-}
-
-.bed-editor__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.bed-editor__title-block {
-  min-width: 0;
-  flex: 1;
-}
-
-.bed-editor__eyebrow {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #6f8368;
-}
-
-.bed-editor__name {
-  margin-top: 2px;
-}
-
-.bed-editor__meta {
-  margin-top: 2px;
-  font-size: 11px;
-  color: #6f756b;
-}
-
-.bed-editor__actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.bed-editor__type-select {
-  min-width: 0;
-}
-
-.bed-editor__stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.bed-editor__field {
-  min-width: 0;
-}
-
-.bed-editor__footer {
-  font-size: 11px;
-  color: #6f756b;
-  padding-top: 2px;
 }
 
 .planting-dialog {

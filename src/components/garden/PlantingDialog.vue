@@ -3,12 +3,18 @@
     <q-card v-if="selectedBed" class="planting-dialog">
       <q-card-section class="planting-dialog__header">
         <div>
-          <div class="text-overline text-positive">Grow In {{ selectedBed.name }}</div>
+          <div class="text-overline text-positive">
+            {{ workspaceMode === 'current' ? 'Grow In' : 'Plan For' }} {{ selectedBed.name }}
+          </div>
           <div class="text-subtitle1 text-weight-medium">
-            {{ selectedPlant?.name ?? 'Choose what to grow' }}
+            {{ selectedPlant?.name ?? (workspaceMode === 'current' ? 'Choose what is growing' : 'Choose what to grow') }}
           </div>
           <div class="text-caption text-grey-7">
             {{ selectedBed.widthFeet }} x {{ selectedBed.heightFeet }} ft
+            <span v-if="selectedPlant">
+              · {{ selectedPlant.cropCategory }}
+              <span v-if="selectedPlant.familyCommonName"> · {{ selectedPlant.familyCommonName }}</span>
+            </span>
             · {{ selectedPlant?.spacingInches ?? 0 }} in spacing
           </div>
         </div>
@@ -30,33 +36,92 @@
             </div>
           </div>
 
-          <q-select
-            :model-value="selectedPlantId"
-            :options="plantOptions"
-            emit-value
-            map-options
-              outlined
-              dense
-              label="Crop"
-              @update:model-value="$emit('update:selectedPlantId', $event)"
-          />
-
-          <div v-if="selectedCropPlan" class="planting-dialog__plan-editor">
-            <div class="planting-dialog__plans-label">Crop Plan</div>
-
+          <div class="planting-dialog__workflow-step">
+            <div class="planting-dialog__workflow-heading">1. Choose Crop</div>
             <q-select
-              :model-value="selectedCropPlan.method"
-              :options="cropPlanMethodOptions"
+              :model-value="selectedPlantId"
+              :options="plantOptions"
               emit-value
               map-options
               outlined
               dense
-              label="Growing Method"
-              @update:model-value="$emit('update:selectedCropPlanMethod', $event)"
-            />
+              label="Crop"
+              @update:model-value="$emit('update:selectedPlantId', $event)"
+            >
+              <template #selected-item="scope">
+                <div class="planting-dialog__crop-selected">
+                  <div class="planting-dialog__crop-selected-name">{{ scope.opt.commonName }}</div>
+                  <div class="planting-dialog__crop-selected-meta">
+                    {{ scope.opt.cropCategory }}
+                    <span v-if="scope.opt.familyCommonName"> · {{ scope.opt.familyCommonName }}</span>
+                  </div>
+                </div>
+              </template>
+
+              <template #option="scope">
+                <q-item v-bind="scope.itemProps">
+                  <q-item-section>
+                    <q-item-label>{{ scope.opt.commonName }}</q-item-label>
+                    <q-item-label caption>
+                      {{ scope.opt.cropCategory }}
+                      <span v-if="scope.opt.familyCommonName"> · {{ scope.opt.familyCommonName }}</span>
+                      <span v-if="scope.opt.spacingInches"> · {{ scope.opt.spacingInches }} in</span>
+                    </q-item-label>
+                  </q-item-section>
+                </q-item>
+              </template>
+            </q-select>
+
+            <div v-if="selectedPlant" class="planting-dialog__crop-card">
+              <div class="planting-dialog__crop-card-header">
+                <div>
+                  <div class="planting-dialog__crop-card-title">{{ selectedPlant.commonName }}</div>
+                  <div class="planting-dialog__crop-card-subtitle">
+                    {{ selectedPlant.cropCategory }}
+                    <span v-if="selectedPlant.familyCommonName"> · {{ selectedPlant.familyCommonName }}</span>
+                  </div>
+                </div>
+                <div class="planting-dialog__crop-card-chip">{{ selectedPlant.spacingInches }} in</div>
+              </div>
+
+              <div class="planting-dialog__crop-card-stats">
+                <div class="planting-dialog__crop-card-stat">
+                  <div class="planting-dialog__crop-card-stat-label">Row Spacing</div>
+                  <div class="planting-dialog__crop-card-stat-value">
+                    {{ selectedPlant.rowSpacingInches ? `${selectedPlant.rowSpacingInches} in` : 'N/A' }}
+                  </div>
+                </div>
+                <div class="planting-dialog__crop-card-stat">
+                  <div class="planting-dialog__crop-card-stat-label">Maturity</div>
+                  <div class="planting-dialog__crop-card-stat-value">
+                    {{ selectedPlant.daysToMaturityMin && selectedPlant.daysToMaturityMax
+                      ? `${selectedPlant.daysToMaturityMin}-${selectedPlant.daysToMaturityMax} days`
+                      : selectedPlant.daysToMaturityMin
+                        ? `${selectedPlant.daysToMaturityMin} days`
+                        : 'N/A' }}
+                  </div>
+                </div>
+                <div class="planting-dialog__crop-card-stat">
+                  <div class="planting-dialog__crop-card-stat-label">Frost</div>
+                  <div class="planting-dialog__crop-card-stat-value">
+                    {{ formatSensitivity(selectedPlant.frostSensitivity) }}
+                  </div>
+                </div>
+                <div class="planting-dialog__crop-card-stat">
+                  <div class="planting-dialog__crop-card-stat-label">Support</div>
+                  <div class="planting-dialog__crop-card-stat-value">
+                    {{ formatSupportNeeds(selectedPlant.supportNeeds) }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="selectedCropPlan" class="planting-dialog__workflow-step planting-dialog__plan-editor">
+            <div class="planting-dialog__workflow-heading">2. Set Plan</div>
 
             <div class="row q-col-gutter-sm">
-              <div class="col-6">
+              <div class="col-12 col-sm-6">
                 <q-input
                   :model-value="selectedCropPlan.targetQuantity"
                   type="number"
@@ -69,14 +134,14 @@
                 />
               </div>
 
-              <div class="col-3">
+              <div class="col-6 col-sm-3">
                 <div class="planting-dialog__plan-stat">
                   <div class="planting-dialog__plan-stat-label">Placed</div>
                   <div class="planting-dialog__plan-stat-value">{{ selectedCropPlanPlacedCount }}</div>
                 </div>
               </div>
 
-              <div class="col-3">
+              <div class="col-6 col-sm-3">
                 <div class="planting-dialog__plan-stat">
                   <div class="planting-dialog__plan-stat-label">Remaining</div>
                   <div class="planting-dialog__plan-stat-value">{{ selectedCropPlanRemainingCount }}</div>
@@ -93,42 +158,94 @@
               label="Garden Notes"
               @update:model-value="$emit('update:selectedCropPlanNotes', $event)"
             />
+
+            <q-select
+              :model-value="selectedCropPlan.method"
+              :options="cropPlanMethodOptions"
+              emit-value
+              map-options
+              outlined
+              dense
+              :label="workspaceMode === 'current' ? 'Growing Method' : 'Planting Approach'"
+              @update:model-value="$emit('update:selectedCropPlanMethod', $event)"
+            />
           </div>
 
-          <q-btn-toggle
-            :model-value="plantingLayoutMode"
-            dense
-            unelevated
-            toggle-color="positive"
-            color="grey-2"
-            text-color="grey-8"
-            :options="[
-              { label: 'Grid', value: 'grid', icon: 'grid_view' },
-              { label: 'Freeform', value: 'free', icon: 'open_with' },
-            ]"
-            @update:model-value="$emit('update:plantingLayoutMode', $event)"
-          />
+          <div class="planting-dialog__workflow-step">
+            <div class="planting-dialog__workflow-heading">3. Place In Zone</div>
 
-          <q-btn-toggle
-            v-if="plantingLayoutMode === 'grid'"
-            :model-value="plantingMode"
-            dense
-            unelevated
-            toggle-color="positive"
-            color="grey-2"
-            text-color="grey-8"
-            :options="[
-              { label: 'Single', value: 'single', icon: 'ads_click' },
-              { label: 'Sweep Area', value: 'drag', icon: 'select_all' },
-            ]"
-            @update:model-value="$emit('update:plantingMode', $event)"
-          />
+            <div class="text-caption text-grey-7">
+              Choose whether this crop should snap into the bed grid or be placed by hand.
+            </div>
+
+            <q-btn-toggle
+              :model-value="plantingLayoutMode"
+              dense
+              unelevated
+              toggle-color="positive"
+              color="grey-2"
+              text-color="grey-8"
+              :options="[
+                { label: 'Block Fill', value: 'grid', icon: 'grid_view' },
+                { label: 'Free Place', value: 'free', icon: 'open_with' },
+              ]"
+              @update:model-value="$emit('update:plantingLayoutMode', $event)"
+            />
+
+            <q-btn-toggle
+              v-if="plantingLayoutMode === 'grid'"
+              :model-value="plantingMode"
+              dense
+              unelevated
+              toggle-color="positive"
+              color="grey-2"
+              text-color="grey-8"
+              :options="[
+                { label: 'Place Spots', value: 'single', icon: 'ads_click' },
+                { label: 'Rows', value: 'row', icon: 'view_stream' },
+                { label: 'Paint Section', value: 'drag', icon: 'select_all' },
+              ]"
+              @update:model-value="$emit('update:plantingMode', $event)"
+            />
+
+            <q-btn-toggle
+              v-if="plantingLayoutMode === 'grid' && plantingMode === 'row'"
+              :model-value="plantingRowAxis"
+              dense
+              unelevated
+              toggle-color="positive"
+              color="grey-2"
+              text-color="grey-8"
+              :options="[
+                { label: 'Across Bed', value: 'horizontal', icon: 'swap_horiz' },
+                { label: 'Down Bed', value: 'vertical', icon: 'swap_vert' },
+              ]"
+              @update:model-value="$emit('update:plantingRowAxis', $event)"
+            />
+
+            <q-btn-toggle
+              v-if="plantingLayoutMode === 'grid' && plantingMode === 'row'"
+              class="planting-dialog__row-action-toggle"
+              :class="{ 'planting-dialog__row-action-toggle--remove': plantingRowAction === 'remove' }"
+              :model-value="plantingRowAction"
+              dense
+              unelevated
+              toggle-color="positive"
+              color="grey-2"
+              text-color="grey-8"
+              :options="[
+                { label: 'Add Rows', value: 'add', icon: 'add' },
+                { label: 'Clear Rows', value: 'remove', icon: 'remove' },
+              ]"
+              @update:model-value="$emit('update:plantingRowAction', $event)"
+            />
+          </div>
 
           <div v-if="plantingLayoutMode === 'grid'" class="planting-dialog__actions">
             <q-btn
               color="positive"
               unelevated
-              label="Place Planned Count"
+              :label="workspaceMode === 'current' ? 'Place Planned Count' : 'Map Planned Count'"
               :disable="selectedCropPlanRemainingCount <= 0"
               @click="$emit('place-planned')"
             />
@@ -157,9 +274,19 @@
           <div class="text-caption text-grey-7">
             {{ plantingLayoutMode === 'grid'
               ? (plantingMode === 'single'
-              ? 'Single mode: click open planting spots to add or remove this crop.'
-              : 'Sweep mode: drag across planting spots to fill a larger section quickly.')
-              : 'Freeform mode: place crops by hand, drag them into place, and watch spacing halos for crowding.' }}
+              ? (workspaceMode === 'current'
+                ? 'Place spots: tap open planting spots to add or remove this crop.'
+                : 'Place spots: tap planting spots to map this crop into the plan.')
+              : plantingMode === 'row'
+                ? (workspaceMode === 'current'
+                  ? `Rows: tap a ${plantingRowAxis === 'horizontal' ? 'cross-bed' : 'down-bed'} row to ${plantingRowAction === 'remove' ? 'clear' : 'plant'} the whole row at once.`
+                  : `Rows: tap a ${plantingRowAxis === 'horizontal' ? 'cross-bed' : 'down-bed'} row to ${plantingRowAction === 'remove' ? 'clear' : 'map'} the whole row at once.`)
+              : (workspaceMode === 'current'
+                ? 'Paint section: drag across planting spots to fill a larger section quickly.'
+                : 'Paint section: drag across planting spots to sketch a larger planned section quickly.'))
+              : (workspaceMode === 'current'
+                ? 'Free place: position crops by hand, drag them into place, and watch spacing halos for crowding.'
+                : 'Free place: position planned crops by hand, adjust them visually, and watch spacing halos for crowding.') }}
           </div>
 
           <div v-if="plantingLayoutMode === 'free'" class="text-caption text-grey-7">
@@ -180,14 +307,16 @@
           </div>
 
           <div v-if="cropPlans.length" class="planting-dialog__plans">
-            <div class="planting-dialog__plans-label">Crop Plans</div>
+            <div class="planting-dialog__plans-label">{{ workspaceMode === 'current' ? 'Crop Plans' : 'Zone Crop Plans' }}</div>
             <div
               v-for="cropPlan in cropPlans"
               :key="cropPlan.id"
               class="planting-dialog__plan-item"
             >
               <span class="planting-dialog__plan-name">{{ cropPlan.plantName }}</span>
-              <span class="planting-dialog__plan-meta">{{ cropPlan.targetQuantity }} planned</span>
+              <span class="planting-dialog__plan-meta">
+                {{ cropPlan.targetQuantity }} {{ workspaceMode === 'current' ? 'planned' : 'in plan' }}
+              </span>
               <span class="planting-dialog__plan-method">{{ cropPlan.methodLabel }}</span>
             </div>
           </div>
@@ -218,6 +347,26 @@
             :style="{ aspectRatio: `${plantingPreviewLayout.width} / ${plantingPreviewLayout.height}` }"
           >
             <g :transform="`translate(${plantingPreviewLayout.padding} ${plantingPreviewLayout.padding})`">
+              <defs>
+                <clipPath id="planting-preview-bed-clip">
+                  <ellipse
+                    v-if="selectedBed.type === 'pot'"
+                    :cx="plantingPreviewLayout.areaWidth / 2"
+                    :cy="plantingPreviewLayout.areaHeight / 2"
+                    :rx="plantingPreviewLayout.areaWidth / 2"
+                    :ry="plantingPreviewLayout.areaHeight / 2"
+                  />
+                  <rect
+                    v-else
+                    :x="0"
+                    :y="0"
+                    :width="plantingPreviewLayout.areaWidth"
+                    :height="plantingPreviewLayout.areaHeight"
+                    :rx="selectedBed.type === 'raised' ? 10 : 6"
+                  />
+                </clipPath>
+              </defs>
+
               <ellipse
                 v-if="selectedBed.type === 'pot'"
                 :cx="plantingPreviewLayout.areaWidth / 2"
@@ -240,6 +389,22 @@
                 stroke-width="3"
               />
 
+              <g clip-path="url(#planting-preview-bed-clip)">
+                <line
+                  v-for="line in previewBedGrid.minorLines"
+                  :key="`preview-bed-minor-${line.x1}-${line.y1}-${line.x2}-${line.y2}`"
+                  class="planting-preview__grid-line planting-preview__grid-line--minor"
+                  v-bind="line"
+                />
+
+                <line
+                  v-for="line in previewBedGrid.majorLines"
+                  :key="`preview-bed-major-${line.x1}-${line.y1}-${line.x2}-${line.y2}`"
+                  class="planting-preview__grid-line planting-preview__grid-line--major"
+                  v-bind="line"
+                />
+              </g>
+
               <circle
                 v-for="point in plantingLayoutMode === 'grid' ? plantingPoints : []"
                 :key="getPointKey(point)"
@@ -249,6 +414,15 @@
                 :fill="getPreviewPointFill(point)"
                 :stroke="getPreviewPointStroke(point)"
                 stroke-width="2"
+              />
+
+              <circle
+                v-for="point in hoveredPlantingRowPoints"
+                :key="`row-hover-${getPointKey(point)}`"
+                class="planting-preview__row-hover"
+                :cx="feetToPixels(point.xFeet)"
+                :cy="feetToPixels(point.yFeet)"
+                :r="9"
               />
 
               <circle
@@ -360,7 +534,33 @@
 </template>
 
 <script setup>
-defineProps({
+import { computed } from 'vue'
+
+import { buildBedGridLines } from 'src/utils/garden'
+
+function formatSensitivity(value) {
+  if (!value) {
+    return 'N/A'
+  }
+
+  return value
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+function formatSupportNeeds(value) {
+  if (!value || value === 'none') {
+    return 'None'
+  }
+
+  return value
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+const props = defineProps({
   modelValue: {
     type: Boolean,
     required: true,
@@ -405,6 +605,14 @@ defineProps({
     type: String,
     required: true,
   },
+  plantingRowAxis: {
+    type: String,
+    required: true,
+  },
+  plantingRowAction: {
+    type: String,
+    required: true,
+  },
   freePlacementSnap: {
     type: Boolean,
     required: true,
@@ -445,6 +653,10 @@ defineProps({
     type: Object,
     required: true,
   },
+  currentGridMinorStepFeet: {
+    type: Number,
+    required: true,
+  },
   plantingPoints: {
     type: Array,
     required: true,
@@ -452,6 +664,10 @@ defineProps({
   hoveredPlantingPoint: {
     type: Object,
     default: null,
+  },
+  hoveredPlantingRowPoints: {
+    type: Array,
+    required: true,
   },
   previewPlantings: {
     type: Array,
@@ -525,6 +741,8 @@ defineEmits([
   'place-guided-suggested',
   'update:plantingLayoutMode',
   'update:plantingMode',
+  'update:plantingRowAxis',
+  'update:plantingRowAction',
   'update:freePlacementSnap',
   'finish-guided-transplant',
   'fill-all',
@@ -536,6 +754,21 @@ defineEmits([
   'preview-pointerleave',
   'close',
 ])
+
+const previewBedGrid = computed(() => {
+  if (!props.selectedBed) {
+    return {
+      majorLines: [],
+      minorLines: [],
+    }
+  }
+
+  return buildBedGridLines(
+    props.selectedBed.widthFeet,
+    props.selectedBed.heightFeet,
+    props.currentGridMinorStepFeet,
+  )
+})
 </script>
 
 <style scoped>
@@ -562,6 +795,114 @@ defineEmits([
 .planting-dialog__controls {
   display: grid;
   gap: 12px;
+}
+
+.planting-dialog__workflow-step {
+  display: grid;
+  gap: 10px;
+}
+
+.planting-dialog__workflow-heading {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #5d7459;
+}
+
+.planting-dialog__row-action-toggle {
+  border-radius: 12px;
+}
+
+.planting-dialog__row-action-toggle--remove :deep(.q-btn--active) {
+  background: rgba(170, 36, 48, 0.92) !important;
+  color: #fff6f6 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.planting-dialog__row-action-toggle--remove :deep(.q-btn--active .q-icon) {
+  color: #fff6f6 !important;
+}
+
+.planting-dialog__crop-selected {
+  display: grid;
+  min-width: 0;
+}
+
+.planting-dialog__crop-selected-name {
+  font-weight: 700;
+  color: #2f412b;
+  line-height: 1.15;
+}
+
+.planting-dialog__crop-selected-meta {
+  font-size: 11px;
+  color: #667761;
+  line-height: 1.15;
+}
+
+.planting-dialog__crop-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255, 252, 244, 0.72);
+  border: 1px solid rgba(78, 101, 72, 0.12);
+}
+
+.planting-dialog__crop-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.planting-dialog__crop-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #2f412b;
+}
+
+.planting-dialog__crop-card-subtitle {
+  font-size: 12px;
+  color: #667761;
+}
+
+.planting-dialog__crop-card-chip {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(99, 126, 90, 0.12);
+  color: #466042;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.planting-dialog__crop-card-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.planting-dialog__crop-card-stat {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.planting-dialog__crop-card-stat-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #607259;
+}
+
+.planting-dialog__crop-card-stat-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: #2f412b;
+  line-height: 1.2;
 }
 
 .planting-dialog__actions {
@@ -650,6 +991,8 @@ defineEmits([
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #607259;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
 }
 
 .planting-dialog__plan-stat-value {
@@ -699,6 +1042,20 @@ defineEmits([
   touch-action: none;
 }
 
+.planting-preview__grid-line {
+  vector-effect: non-scaling-stroke;
+}
+
+.planting-preview__grid-line--major {
+  stroke: rgba(255, 248, 234, 0.4);
+  stroke-width: 1;
+}
+
+.planting-preview__grid-line--minor {
+  stroke: rgba(255, 248, 234, 0.18);
+  stroke-width: 1;
+}
+
 .planting-preview__selection {
   fill: rgba(123, 191, 88, 0.18);
   stroke: rgba(77, 117, 59, 0.65);
@@ -710,6 +1067,12 @@ defineEmits([
   fill: none;
   stroke: rgba(255, 251, 220, 0.95);
   stroke-width: 3;
+}
+
+.planting-preview__row-hover {
+  fill: rgba(215, 241, 113, 0.12);
+  stroke: rgba(215, 241, 113, 0.7);
+  stroke-width: 2;
 }
 
 .planting-preview__halo {

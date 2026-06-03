@@ -24,6 +24,15 @@ export function usePendingPlacement({
     captureItems.find((item) => item.value === pendingPlacement.value?.value) ?? null
   ))
 
+  function getPlacementTemplateForBed(bed) {
+    return captureItems.find((item) => (
+      item.storeType === bed.type
+      && (item.renderKind ?? null) === (bed.renderKind ?? null)
+      && (item.renderTheme ?? null) === (bed.renderTheme ?? null)
+      && (item.placementMode ?? null) === (bed.placementMode ?? null)
+    )) ?? null
+  }
+
   const isPendingPlacementToolbarVisible = computed(() => (
     Boolean(pendingPlacement.value) && (isMobileCaptureMode.value || isPendingPlacementPinned.value)
   ))
@@ -40,7 +49,7 @@ export function usePendingPlacement({
       return null
     }
 
-    const toolbarWidth = isMobileCaptureMode.value ? 248 : 286
+    const toolbarWidth = isMobileCaptureMode.value ? 264 : 286
     const toolbarHeight = isMobileCaptureMode.value ? 112 : 76
     const edgePadding = 12
     const offset = 18
@@ -56,7 +65,9 @@ export function usePendingPlacement({
     const unclampedLeft = shouldFlipLeft
       ? left - toolbarWidth - offset
       : left + width + offset
-    const unclampedTop = top + (height / 2) - (toolbarHeight / 2)
+    const unclampedTop = isMobileCaptureMode.value
+      ? screenHeight - toolbarHeight - 92
+      : top + (height / 2) - (toolbarHeight / 2)
 
     return {
       width: toolbarWidth,
@@ -190,6 +201,30 @@ export function usePendingPlacement({
     activeCanvasTool.value = 'move'
   }
 
+  function startPlacementFromExistingBed(bed) {
+    if (!bed) {
+      return
+    }
+
+    const template = getPlacementTemplateForBed(bed)
+    isPendingPlacementPinned.value = isMobileCaptureMode.value
+    isPlacementToolbarHovered.value = false
+    pendingPlacement.value = constrainPendingPlacement({
+      ...bed,
+      type: bed.type,
+      name: bed.name,
+      label: bed.name,
+      value: template?.value ?? bed.type,
+      storeType: bed.type,
+      existingBedId: bed.id,
+      activePresetIndex: template?.sizePresets?.findIndex((preset) => (
+        Number(preset.widthFeet) === Number(bed.widthFeet)
+        && Number(preset.heightFeet) === Number(bed.heightFeet)
+      )) ?? 0,
+    })
+    activeCanvasTool.value = 'move'
+  }
+
   function isPointerNearPendingPlacementToolbar(clientX, clientY) {
     if (
       isMobileCaptureMode.value
@@ -249,6 +284,26 @@ export function usePendingPlacement({
       return null
     }
 
+    if (pendingPlacement.value.existingBedId) {
+      gardenStore.updateBed(pendingPlacement.value.existingBedId, {
+        xFeet: pendingPlacement.value.xFeet,
+        yFeet: pendingPlacement.value.yFeet,
+        widthFeet: pendingPlacement.value.widthFeet,
+        heightFeet: pendingPlacement.value.heightFeet,
+        bedHeightInches: pendingPlacement.value.bedHeightInches,
+        rotationDegrees: pendingPlacement.value.rotationDegrees,
+        borderEdge: pendingPlacement.value.borderEdge ?? null,
+      })
+
+      const updatedBed = gardenStore.beds.find((bed) => bed.id === pendingPlacement.value.existingBedId) ?? null
+      isPendingPlacementPinned.value = false
+      pendingPlacement.value = null
+      return {
+        action: 'moved',
+        bed: updatedBed,
+      }
+    }
+
     const nextBed = addArea(pendingPlacement.value.storeType, {
       useExactPlacement: true,
       widthFeet: pendingPlacement.value.widthFeet,
@@ -275,7 +330,10 @@ export function usePendingPlacement({
 
     isPendingPlacementPinned.value = false
     pendingPlacement.value = null
-    return nextBed
+    return {
+      action: 'added',
+      bed: nextBed,
+    }
   }
 
   function clearPendingPlacement() {
@@ -331,6 +389,7 @@ export function usePendingPlacement({
     pendingPlacementSizeLabel,
     pendingPlacementToolbarStyle,
     startPlacementFromPalette,
+    startPlacementFromExistingBed,
     updatePendingPlacementPosition,
     togglePendingPlacementPin,
     placePendingPlacement,

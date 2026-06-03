@@ -16,6 +16,7 @@
             :model-value="selectedBed.name"
             dense
             borderless
+            :readonly="!allowLayoutEditing"
             class="bed-editor__name"
             @update:model-value="$emit('update-name', $event)"
           />
@@ -26,19 +27,83 @@
         </div>
 
         <div class="bed-editor__actions">
-          <q-btn round dense flat icon="rotate_90_degrees_cw" @click="$emit('rotate')">
-            <q-tooltip>Rotate 90°</q-tooltip>
+          <q-btn
+            v-if="allowLayoutEditing"
+            round
+            dense
+            unelevated
+            color="white"
+            text-color="grey-8"
+            size="12px"
+            class="bed-editor__action-btn"
+            @click="$emit('toggle-lock')"
+          >
+            <GardenUiIcon
+              :paths="selectedBed.locked ? lockIconPaths : unlockIconPaths"
+              size="26px"
+              color="currentColor"
+            />
+            <q-tooltip>{{ selectedBed.locked ? 'Unlock zone' : 'Lock zone' }}</q-tooltip>
           </q-btn>
-          <q-btn round dense flat icon="close" @click="$emit('close')">
+          <q-btn
+            v-if="allowLayoutEditing"
+            round
+            dense
+            unelevated
+            color="white"
+            text-color="grey-8"
+            size="12px"
+            class="bed-editor__action-btn"
+            :disable="selectedBed.locked"
+            @click="$emit('rotate')"
+          >
+            <GardenUiIcon
+              :paths="rotateIconPaths"
+              size="26px"
+              color="currentColor"
+            />
+            <q-tooltip>{{ selectedBed.locked ? 'Unlock zone to rotate' : 'Rotate 90°' }}</q-tooltip>
+          </q-btn>
+          <q-btn
+            round
+            dense
+            unelevated
+            color="white"
+            text-color="grey-8"
+            size="12px"
+            class="bed-editor__action-btn"
+            @click="$emit('close')"
+          >
+            <GardenUiIcon
+              :paths="closeIconPaths"
+              size="24px"
+              color="currentColor"
+            />
             <q-tooltip>Close</q-tooltip>
           </q-btn>
-          <q-btn round dense flat color="negative" icon="delete" @click="$emit('delete')">
+          <q-btn
+            v-if="allowLayoutEditing"
+            round
+            dense
+            unelevated
+            color="negative"
+            text-color="white"
+            size="12px"
+            class="bed-editor__action-btn"
+            @click="$emit('delete')"
+          >
+            <GardenUiIcon
+              :paths="deleteIconPaths"
+              size="26px"
+              color="currentColor"
+            />
             <q-tooltip>Delete</q-tooltip>
           </q-btn>
         </div>
       </div>
 
       <q-select
+        v-if="allowLayoutEditing"
         :model-value="selectedBed.type"
         :options="bedTypeSelectOptions"
         dense
@@ -46,12 +111,13 @@
         emit-value
         map-options
         options-dense
+        :disable="selectedBed.locked"
         label="Growing Zone Type"
         class="bed-editor__type-select"
         @update:model-value="$emit('update-type', $event)"
       />
 
-      <div class="bed-editor__stats">
+      <div v-if="allowLayoutEditing" class="bed-editor__stats">
         <q-input
           :model-value="selectedBed.widthFeet"
           type="number"
@@ -59,6 +125,7 @@
           step="0.5"
           dense
           outlined
+          :disable="selectedBed.locked"
           label="Width"
           suffix="ft"
           class="bed-editor__field"
@@ -72,6 +139,7 @@
           step="0.5"
           dense
           outlined
+          :disable="selectedBed.locked"
           label="Length"
           suffix="ft"
           class="bed-editor__field"
@@ -87,6 +155,7 @@
           step="1"
           dense
           outlined
+          :disable="selectedBed.locked"
           label="Depth"
           suffix="in"
           class="bed-editor__field"
@@ -111,6 +180,8 @@
 </template>
 
 <script setup>
+import GardenUiIcon from './GardenUiIcon.vue'
+
 defineProps({
   selectedBed: {
     type: Object,
@@ -127,6 +198,10 @@ defineProps({
   bedTypeSelectOptions: {
     type: Array,
     required: true,
+  },
+  allowLayoutEditing: {
+    type: Boolean,
+    default: true,
   },
   styleObject: {
     type: Object,
@@ -153,16 +228,48 @@ defineEmits([
   'update-length',
   'update-height',
   'rotate',
+  'toggle-lock',
   'close',
   'delete',
   'plant',
 ])
+
+const lockIconPaths = [
+  { d: 'M8 11V8.75C8 6.68 9.79 5 12 5C14.21 5 16 6.68 16 8.75V11', strokeWidth: 1.9 },
+  { d: 'M7.5 11.25H16.5V18H7.5Z', strokeWidth: 1.9, strokeLinejoin: 'round' },
+  { d: 'M12 13.7V15.75', strokeWidth: 1.9 },
+]
+
+const unlockIconPaths = [
+  { d: 'M8 11V8.85C8 6.72 9.79 5 12 5C13.63 5 15.02 5.92 15.63 7.25', strokeWidth: 1.9 },
+  { d: 'M7.5 11.25H16.5V18H7.5Z', strokeWidth: 1.9, strokeLinejoin: 'round' },
+  { d: 'M12 13.7V15.75', strokeWidth: 1.9 },
+]
+
+const rotateIconPaths = [
+  { d: 'M8.15 9.15A5.25 5.25 0 1 1 8.3 15.05', strokeWidth: 1.9 },
+  { d: 'M8.05 5.95V9.55H11.65', strokeWidth: 1.9 },
+]
+
+const closeIconPaths = [
+  { d: 'M7.5 7.5L16.5 16.5', strokeWidth: 2.1 },
+  { d: 'M16.5 7.5L7.5 16.5', strokeWidth: 2.1 },
+]
+
+const deleteIconPaths = [
+  { d: 'M8.5 8.75H15.5', strokeWidth: 1.9 },
+  { d: 'M9.25 8.75V16.75', strokeWidth: 1.9 },
+  { d: 'M12 8.75V16.75', strokeWidth: 1.9 },
+  { d: 'M14.75 8.75V16.75', strokeWidth: 1.9 },
+  { d: 'M7.75 6.5H16.25', strokeWidth: 1.9 },
+  { d: 'M10.25 6.5V5.5H13.75V6.5', strokeWidth: 1.9 },
+  { d: 'M8.5 8.75L8.95 18H15.05L15.5 8.75', strokeWidth: 1.9, strokeLinejoin: 'round' },
+]
 </script>
 
 <style scoped>
 .bed-editor {
-  position: absolute;
-  z-index: 2;
+  position: relative;
   width: 264px;
   border-radius: 14px;
   background: rgba(255, 252, 244, 0.94);
@@ -209,7 +316,11 @@ defineEmits([
 .bed-editor__actions {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 6px;
+}
+
+.bed-editor__action-btn {
+  box-shadow: 0 8px 18px rgba(37, 51, 34, 0.08);
 }
 
 .bed-editor__type-select {

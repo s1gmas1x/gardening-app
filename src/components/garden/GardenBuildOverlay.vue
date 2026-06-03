@@ -134,16 +134,24 @@
         </div>
 
         <div class="placement-toolbar__actions">
-          <q-btn round unelevated color="white" text-color="grey-8" icon="rotate_90_degrees_cw" @click="$emit('rotate-pending-placement')">
+          <q-btn round unelevated color="white" text-color="grey-8" class="placement-toolbar__action-btn" @click="$emit('rotate-pending-placement')">
+            <GardenUiIcon :paths="rotateActionIconPaths" size="26px" color="#4f6250" />
+            <span v-if="isMobileCaptureMode" class="placement-toolbar__action-label">Rotate</span>
             <q-tooltip>Rotate</q-tooltip>
           </q-btn>
-          <q-btn round unelevated color="white" text-color="grey-8" icon="zoom_out_map" @click="$emit('cycle-pending-placement-size')">
+          <q-btn round unelevated color="white" text-color="grey-8" class="placement-toolbar__action-btn" @click="$emit('cycle-pending-placement-size')">
+            <GardenUiIcon :paths="resizeActionIconPaths" size="26px" color="#4f6250" />
+            <span v-if="isMobileCaptureMode" class="placement-toolbar__action-label">Size</span>
             <q-tooltip>Edit size</q-tooltip>
           </q-btn>
-          <q-btn round unelevated :color="accentColor" text-color="white" icon="done" @click="$emit('place-pending-placement')">
+          <q-btn round unelevated :color="accentColor" text-color="white" class="placement-toolbar__action-btn placement-toolbar__action-btn--place" @click="$emit('place-pending-placement')">
+            <GardenUiIcon :paths="placeActionIconPaths" size="26px" color="#ffffff" />
+            <span v-if="isMobileCaptureMode" class="placement-toolbar__action-label">Place</span>
             <q-tooltip>Place</q-tooltip>
           </q-btn>
-          <q-btn round unelevated color="white" text-color="grey-8" icon="close" @click="$emit('cancel-pending-placement')">
+          <q-btn round unelevated color="white" text-color="grey-8" class="placement-toolbar__action-btn" @click="$emit('cancel-pending-placement')">
+            <GardenUiIcon :paths="cancelActionIconPaths" size="26px" color="#4f6250" />
+            <span v-if="isMobileCaptureMode" class="placement-toolbar__action-label">Cancel</span>
             <q-tooltip>Cancel</q-tooltip>
           </q-btn>
         </div>
@@ -169,6 +177,27 @@ const expandIconPaths = [
   { d: 'M6 9L12 15L18 9' },
 ]
 const doneButtonIconPaths = [
+  { d: 'M8 8L16 16' },
+  { d: 'M16 8L8 16' },
+]
+const rotateActionIconPaths = [
+  { d: 'M8.15 9.15A5.25 5.25 0 1 1 8.3 15.05', strokeWidth: 1.9 },
+  { d: 'M8.05 5.95V9.55H11.65', strokeWidth: 1.9 },
+]
+const resizeActionIconPaths = [
+  { d: 'M7 9V7H9', strokeWidth: 1.9 },
+  { d: 'M15 7H17V9', strokeWidth: 1.9 },
+  { d: 'M17 15V17H15', strokeWidth: 1.9 },
+  { d: 'M9 17H7V15', strokeWidth: 1.9 },
+  { d: 'M7 7L10.2 10.2', strokeWidth: 1.9 },
+  { d: 'M17 7L13.8 10.2', strokeWidth: 1.9 },
+  { d: 'M17 17L13.8 13.8', strokeWidth: 1.9 },
+  { d: 'M7 17L10.2 13.8', strokeWidth: 1.9 },
+]
+const placeActionIconPaths = [
+  { d: 'M7.5 12.5L10.5 15.5L16.5 9.5' },
+]
+const cancelActionIconPaths = [
   { d: 'M8 8L16 16' },
   { d: 'M16 8L8 16' },
 ]
@@ -478,8 +507,11 @@ function getCaptureItemSummary(item) {
 }
 
 .placement-toolbar--mobile {
-  width: min(248px, calc(100vw - 24px));
+  width: min(264px, calc(100vw - 24px));
   border-radius: 20px;
+  background: rgba(255, 252, 244, 0.88);
+  box-shadow: 0 12px 24px rgba(37, 51, 34, 0.1);
+  backdrop-filter: blur(10px);
 }
 
 .placement-toolbar__section {
@@ -510,9 +542,16 @@ function getCaptureItemSummary(item) {
   gap: 8px;
 }
 
-.placement-toolbar__actions :deep(.q-btn) {
+.placement-toolbar__action-btn {
   min-width: 44px;
   min-height: 44px;
+  box-shadow:
+    0 8px 18px rgba(37, 51, 34, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.placement-toolbar__action-label {
+  display: none;
 }
 
 @media (max-width: 680px) {
@@ -537,8 +576,38 @@ function getCaptureItemSummary(item) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .placement-toolbar--mobile {
+    width: min(264px, calc(100vw - 24px));
+  }
+
   .placement-toolbar__actions {
-    gap: 6px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .placement-toolbar__action-btn {
+    width: 100%;
+    min-width: 0;
+    min-height: 50px;
+    border-radius: 14px;
+    box-shadow:
+      0 6px 14px rgba(37, 51, 34, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.56);
+  }
+
+  .placement-toolbar__action-btn :deep(.q-btn__content) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+  }
+
+  .placement-toolbar__action-label {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
   }
 }
 </style>

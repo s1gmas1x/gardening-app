@@ -35,6 +35,7 @@
                     @request-measurement="handleMeasurementRequest"
                     @update-placement-preview="updatePendingPlacementPosition"
                     @toggle-placement-preview-lock="togglePendingPlacementPin"
+                    @move-selected-bed-with-preview="startPreviewMoveSelectedBed"
                   />
                 </div>
               </div>
@@ -116,47 +117,38 @@
                 color="white"
                 text-color="grey-8"
                 class="simulation-stage__nav-toggle"
-                :options="[
-                  { label: 'Map', value: 'layout' },
-                  { label: 'Plan', value: 'plan' },
-                  { label: 'In Garden', value: 'current' },
-                ]"
+                :options="workspaceTabOptions"
               />
 
               <div class="simulation-stage__topbar-actions">
-                <q-chip dense :color="workspaceTheme.chipColor" text-color="white">
-                  <GardenUiIcon
-                    :paths="workspaceBadgeIconPaths"
-                    size="18px"
-                    color="#ffffff"
-                    class="simulation-stage__chip-icon"
-                  />
-                  {{ activeToolLabel }}
-                </q-chip>
-                <q-btn
-                  ref="gridMenuTrigger"
+                <q-btn-dropdown
+                  v-if="isMobileCaptureMode"
                   unelevated
                   rounded
-                  color="white"
-                  text-color="grey-8"
-                  class="simulation-stage__grid-trigger"
-                  @click="isGridMenuOpen = !isGridMenuOpen"
+                  :color="workspaceTheme.chipColor"
+                  text-color="white"
+                  class="simulation-stage__mobile-hud-trigger"
+                  no-icon-animation
+                  dropdown-icon=""
                 >
-                  <div class="simulation-stage__grid-trigger-content">
-                    <GardenUiIcon
-                      :paths="gridIconPaths"
-                      size="18px"
-                      color="#4a5a45"
-                    />
-                    <span>{{ selectedGridScaleLabel }}</span>
-                  </div>
-                </q-btn>
-                <q-menu
-                  v-model="isGridMenuOpen"
-                  anchor="bottom right"
-                  self="top right"
-                  :offset="[0, 10]"
-                >
+                  <template #label>
+                    <div class="simulation-stage__mobile-hud-content">
+                      <GardenUiIcon
+                        :paths="workspaceBadgeIconPaths"
+                        size="18px"
+                        color="#ffffff"
+                        class="simulation-stage__chip-icon"
+                      />
+                      <span class="simulation-stage__mobile-hud-label">{{ activeToolLabel }}</span>
+                      <span class="simulation-stage__mobile-hud-divider">/</span>
+                      <GardenUiIcon
+                        :paths="gridIconPaths"
+                        size="16px"
+                        color="#ffffff"
+                      />
+                      <span class="simulation-stage__mobile-hud-grid">{{ selectedGridScaleLabel }}</span>
+                    </div>
+                  </template>
                   <q-list dense class="simulation-stage__grid-menu">
                     <q-item clickable v-close-popup @click="selectedGridScale = 'one_foot'">
                       <q-item-section>1 ft grid</q-item-section>
@@ -168,7 +160,47 @@
                       <q-item-section>3 in grid</q-item-section>
                     </q-item>
                   </q-list>
-                </q-menu>
+                </q-btn-dropdown>
+                <q-btn-dropdown
+                  v-else
+                  unelevated
+                  rounded
+                  :color="workspaceTheme.chipColor"
+                  text-color="white"
+                  class="simulation-stage__desktop-hud-trigger"
+                  no-icon-animation
+                  dropdown-icon=""
+                >
+                  <template #label>
+                    <div class="simulation-stage__desktop-hud-content">
+                      <GardenUiIcon
+                        :paths="workspaceBadgeIconPaths"
+                        size="18px"
+                        color="#ffffff"
+                        class="simulation-stage__chip-icon"
+                      />
+                      <span class="simulation-stage__desktop-hud-label">{{ activeToolLabel }}</span>
+                      <span class="simulation-stage__mobile-hud-divider">/</span>
+                      <GardenUiIcon
+                        :paths="gridIconPaths"
+                        size="16px"
+                        color="#ffffff"
+                      />
+                      <span class="simulation-stage__desktop-hud-grid">{{ selectedGridScaleLabel }}</span>
+                    </div>
+                  </template>
+                  <q-list dense class="simulation-stage__grid-menu">
+                    <q-item clickable v-close-popup @click="selectedGridScale = 'one_foot'">
+                      <q-item-section>1 ft grid</q-item-section>
+                    </q-item>
+                    <q-item clickable v-close-popup @click="selectedGridScale = 'six_in'">
+                      <q-item-section>6 in grid</q-item-section>
+                    </q-item>
+                    <q-item clickable v-close-popup @click="selectedGridScale = 'three_in'">
+                      <q-item-section>3 in grid</q-item-section>
+                    </q-item>
+                  </q-list>
+                </q-btn-dropdown>
               </div>
             </div>
           </div>
@@ -365,6 +397,19 @@ const workspaceTheme = computed(() => (
         icon: 'spa',
       }
 ))
+const workspaceTabOptions = computed(() => (
+  isMobileCaptureMode.value
+    ? [
+        { label: 'Map', value: 'layout' },
+        { label: 'Plan', value: 'plan' },
+        { label: 'Now', value: 'current' },
+      ]
+    : [
+        { label: 'Map', value: 'layout' },
+        { label: 'Plan', value: 'plan' },
+        { label: 'In Garden', value: 'current' },
+      ]
+))
 const workspaceBadgeIconPaths = computed(() => (
   activeWorkspaceTab.value === 'layout'
     ? [
@@ -395,7 +440,7 @@ const palettePrimaryTools = computed(() => (
       ]
     : activeWorkspaceTab.value === 'plan'
       ? [
-          { value: 'plant', icon: 'eco', label: 'Plan what grows in each zone' },
+          { value: 'plant', icon: 'eco', label: 'Plan crops in each zone' },
           { value: 'measure', icon: 'straighten', label: 'Check spacing and size' },
         ]
       : [
@@ -405,7 +450,7 @@ const palettePrimaryTools = computed(() => (
 ))
 const activeToolLabel = computed(() => (
   pendingPlacement.value
-    ? `Placing ${pendingPlacement.value.label}`
+    ? (isMobileCaptureMode.value ? pendingPlacement.value.label : `Placing ${pendingPlacement.value.label}`)
     : activeCanvasTool.value === 'resize'
       ? 'Resize'
       : activeCanvasTool.value === 'rotate'
@@ -413,10 +458,12 @@ const activeToolLabel = computed(() => (
         : activeCanvasTool.value === 'measure'
           ? 'Measure'
           : activeCanvasTool.value === 'plant'
-            ? (activeWorkspaceTab.value === 'current' ? 'In Garden' : 'Plant')
+            ? (activeWorkspaceTab.value === 'current' ? 'In Garden' : activeWorkspaceTab.value === 'plan' ? 'Plan Crops' : 'Plant')
             : activeWorkspaceTab.value === 'layout'
               ? 'Map'
-              : 'Move'
+              : activeWorkspaceTab.value === 'plan'
+                ? 'Plan Crops'
+                : 'In Garden'
 ))
 const selectedGridScaleLabel = computed(() => (
   selectedGridScale.value === 'three_in'
@@ -442,7 +489,6 @@ const assistantHomeIconPaths = [
   { d: 'M9 19V12H15V19' },
   { d: 'M10.2 14H13.8' },
 ]
-const isGridMenuOpen = ref(false)
 
 watch(
   () => [gardenStore.widthFeet, gardenStore.lengthFeet],
@@ -455,6 +501,14 @@ watch(
 watch(activeWorkspaceTab, (nextTab) => {
   if (nextTab === 'layout' && activeCanvasTool.value === 'plant') {
     activeCanvasTool.value = 'move'
+  }
+
+  if (
+    nextTab === 'plan'
+    && activeCanvasTool.value !== 'plant'
+    && activeCanvasTool.value !== 'measure'
+  ) {
+    activeCanvasTool.value = 'plant'
   }
 
   if (nextTab !== 'layout') {
@@ -492,6 +546,7 @@ const {
   pendingPlacementSizeLabel,
   pendingPlacementToolbarStyle,
   startPlacementFromPalette: beginPlacementFromPalette,
+  startPlacementFromExistingBed,
   updatePendingPlacementPosition,
   togglePendingPlacementPin,
   placePendingPlacement: placePendingPlacementWithName,
@@ -532,6 +587,16 @@ function showPlacementFeedback(message) {
 function startPlacementFromPalette(item) {
   clearPlacementFeedback()
   beginPlacementFromPalette(item)
+}
+
+function startPreviewMoveSelectedBed(bedId) {
+  const bed = gardenStore.beds.find((item) => item.id === bedId)
+  if (!bed || bed.locked) {
+    return
+  }
+
+  clearPlacementFeedback()
+  startPlacementFromExistingBed(bed)
 }
 
 onBeforeUnmount(() => {
@@ -594,9 +659,18 @@ function buildCaptureZoneName(template, nextBed) {
 }
 
 function placePendingPlacement() {
-  const nextBed = placePendingPlacementWithName(buildCaptureZoneName)
+  const placementResult = placePendingPlacementWithName(buildCaptureZoneName)
 
-  if (nextBed && !isMobileCaptureMode.value && activeWorkspaceTab.value === 'layout') {
+  if (!placementResult) {
+    return
+  }
+
+  if (placementResult.action === 'moved') {
+    showPlacementFeedback('Area moved')
+    return
+  }
+
+  if (placementResult.bed && !isMobileCaptureMode.value && activeWorkspaceTab.value === 'layout') {
     showPlacementFeedback('Area added')
     isCapturePanelOpen.value = true
   }
@@ -834,7 +908,91 @@ const {
 .simulation-stage__topbar-actions {
   display: grid;
   gap: 10px;
-  justify-items: end;
+  justify-items: start;
+  align-self: start;
+}
+
+.simulation-stage__status-chip {
+  max-width: 100%;
+}
+
+.simulation-stage__status-chip-label {
+  display: inline-block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.simulation-stage__mobile-hud-trigger {
+  min-width: 0;
+}
+
+.simulation-stage__desktop-hud-trigger {
+  min-width: 0;
+  justify-self: start;
+}
+
+.simulation-stage__mobile-hud-trigger :deep(.q-btn-dropdown__arrow-container) {
+  display: none;
+}
+
+.simulation-stage__desktop-hud-trigger :deep(.q-btn-dropdown__arrow-container) {
+  display: none;
+}
+
+.simulation-stage__mobile-hud-trigger :deep(.q-btn__content) {
+  width: 100%;
+}
+
+.simulation-stage__desktop-hud-trigger :deep(.q-btn__content) {
+  width: 100%;
+}
+
+.simulation-stage__mobile-hud-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.simulation-stage__desktop-hud-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.simulation-stage__mobile-hud-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.simulation-stage__desktop-hud-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.simulation-stage__mobile-hud-divider {
+  opacity: 0.6;
+}
+
+.simulation-stage__mobile-hud-grid {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.simulation-stage__desktop-hud-grid {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .simulation-stage__topbar-actions :deep(.q-btn),
@@ -847,7 +1005,8 @@ const {
 
 .simulation-stage__topbar-panel {
   display: grid;
-  grid-template-columns: auto auto auto;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
   gap: 12px;
   align-items: flex-start;
   padding: 10px 10px 10px 12px;
@@ -864,6 +1023,22 @@ const {
 
 .simulation-stage__topbar-panel :deep(.today-widget) {
   box-shadow: none;
+}
+
+.simulation-stage__today-card {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+}
+
+.simulation-stage__nav-toggle {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: start;
+}
+
+.simulation-stage__topbar-actions {
+  grid-column: 2;
+  grid-row: 2;
 }
 
 .simulation-stage__assistant-rail {
@@ -986,31 +1161,72 @@ const {
     grid-row: 2;
     width: 100%;
     justify-items: stretch;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     gap: 6px;
   }
 
-.simulation-stage__chip-icon {
-  margin-right: 6px;
-}
+  .simulation-stage__nav-toggle :deep(.q-btn) {
+    min-width: 0;
+    padding-inline: 8px;
+    font-size: 0.76rem;
+    letter-spacing: 0.01em;
+  }
 
-.simulation-stage__grid-trigger {
-  min-width: 0;
-}
+  .simulation-stage__chip-icon {
+    margin-right: 5px;
+  }
 
-.simulation-stage__grid-trigger-content {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
+  .simulation-stage__status-chip {
+    justify-content: flex-start;
+    min-width: 0;
+    padding-inline: 8px;
+  }
 
-.simulation-stage__grid-menu {
-  min-width: 140px;
-}
+  .simulation-stage__status-chip :deep(.q-chip__content) {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .simulation-stage__status-chip-label {
+    max-width: 100%;
+    font-size: 0.75rem;
+  }
+
+  .simulation-stage__mobile-hud-trigger {
+    width: 100%;
+    justify-content: flex-start;
+    padding-inline: 10px;
+  }
+
+  .simulation-stage__mobile-hud-content {
+    width: 100%;
+    gap: 5px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+
+  .simulation-stage__mobile-hud-label {
+    flex: 1 1 auto;
+  }
+
+  .simulation-stage__grid-menu {
+    min-width: 132px;
+  }
 
   .simulation-stage__topbar-actions :deep(.q-btn),
   .simulation-stage__topbar-actions :deep(.q-chip) {
+    min-width: 0;
+  }
+
+  .simulation-stage__topbar-actions :deep(.q-chip) {
     width: 100%;
+  }
+
+  .simulation-stage__topbar-actions :deep(.q-btn) {
+    width: auto;
     min-width: 0;
   }
 

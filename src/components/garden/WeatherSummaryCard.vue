@@ -12,7 +12,7 @@
         <q-btn
           color="secondary"
           outline
-          label="Refresh Sky"
+          :label="weatherPending ? 'Refreshing…' : 'Refresh Sky'"
           :loading="weatherPending"
           :disable="!canRefresh"
           @click="$emit('refresh-weather')"
@@ -41,6 +41,9 @@
             </div>
             <div v-if="lastUpdatedAt" class="text-caption text-grey-6 q-mt-xs">
               Updated {{ formatTimestamp(lastUpdatedAt) }}
+            </div>
+            <div v-if="weatherPending || justUpdated" class="weather-card__status" :class="{ 'weather-card__status--pending': weatherPending }">
+              {{ weatherPending ? 'Updating now…' : 'Just updated' }}
             </div>
           </div>
         </div>
@@ -153,7 +156,9 @@
 </template>
 
 <script setup>
-defineProps({
+import { computed } from 'vue'
+
+const props = defineProps({
   locationDisplayName: {
     type: String,
     required: true,
@@ -218,6 +223,20 @@ defineProps({
 
 defineEmits(['refresh-weather'])
 
+const justUpdated = computed(() => {
+  if (props.weatherPending || !props.lastUpdatedAt) {
+    return false
+  }
+
+  const updatedAtMs = new Date(props.lastUpdatedAt).getTime()
+
+  if (!Number.isFinite(updatedAtMs)) {
+    return false
+  }
+
+  return (Date.now() - updatedAtMs) <= 2 * 60 * 1000
+})
+
 function formatWhole(value) {
   return Number.isFinite(Number(value)) ? Math.round(Number(value)) : '--'
 }
@@ -280,6 +299,17 @@ function formatTimestamp(value) {
 .weather-card__summary {
   font-weight: 600;
   color: #43573e;
+}
+
+.weather-card__status {
+  margin-top: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #3b6a93;
+}
+
+.weather-card__status--pending {
+  color: #466042;
 }
 
 .weather-card__risk-list {

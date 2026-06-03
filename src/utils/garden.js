@@ -177,19 +177,47 @@ export function getAreaPlantingPoints(area, plantId) {
   const startY = Math.min(edgeClearanceFeet, heightFeet / 2)
   const endX = Math.max(widthFeet - edgeClearanceFeet, startX)
   const endY = Math.max(heightFeet - edgeClearanceFeet, startY)
-  const epsilon = 0.0001
 
-  for (let xFeet = startX; xFeet <= endX + epsilon; xFeet += spacingFeet) {
-    for (let yFeet = startY; yFeet <= endY + epsilon; yFeet += spacingFeet) {
-      const snappedX = Number(xFeet.toFixed(4))
-      const snappedY = Number(yFeet.toFixed(4))
+  function buildAxisPositions(startFeet, endFeet) {
+    const usableSpan = Math.max(endFeet - startFeet, 0)
 
-      if (isPointInsideArea(area, snappedX, snappedY)) {
+    if (usableSpan === 0 || spacingFeet <= 0) {
+      return [Number(startFeet.toFixed(4))]
+    }
+
+    const stepCount = Math.max(0, Math.floor(usableSpan / spacingFeet))
+    const pointCount = stepCount + 1
+    const occupiedSpan = stepCount * spacingFeet
+    const centeredStart = startFeet + ((usableSpan - occupiedSpan) / 2)
+
+    return Array.from({ length: pointCount }, (_, index) => (
+      Number((centeredStart + (index * spacingFeet)).toFixed(4))
+    ))
+  }
+
+  const xPositions = buildAxisPositions(startX, endX)
+  const yPositions = buildAxisPositions(startY, endY)
+
+  xPositions.forEach((xFeet) => {
+    yPositions.forEach((yFeet) => {
+      if (isPointInsideArea(area, xFeet, yFeet)) {
         points.push({
-          xFeet: snappedX,
-          yFeet: snappedY,
+          xFeet,
+          yFeet,
         })
       }
+    })
+  })
+
+  if (!points.length) {
+    const centeredX = Number((widthFeet / 2).toFixed(4))
+    const centeredY = Number((heightFeet / 2).toFixed(4))
+
+    if (isPointInsideArea(area, centeredX, centeredY)) {
+      points.push({
+        xFeet: centeredX,
+        yFeet: centeredY,
+      })
     }
   }
 
@@ -226,6 +254,7 @@ export function createDefaultBed(index, garden, type = 'regular', sequenceNumber
     type: normalizedType,
     bedHeightInches: typeMeta.defaultHeightInches,
     rotationDegrees: 0,
+    locked: false,
     color: typeMeta.fill,
   }
   const placement = findNextBedPlacement([], seededBed, garden)
@@ -368,6 +397,7 @@ export function clampBedToGarden(bed, garden) {
     type,
     bedHeightInches,
     rotationDegrees,
+    locked: Boolean(bed.locked),
     color: typeMeta.fill,
     xFeet: clamp(snapToIncrement(Number(bed.xFeet) || 0), 0, maxX),
     yFeet: clamp(snapToIncrement(Number(bed.yFeet) || 0), 0, maxY),

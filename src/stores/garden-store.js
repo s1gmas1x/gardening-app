@@ -54,6 +54,7 @@ function buildPersistedSnapshot(state) {
         type: bed.type,
         bedHeightInches: bed.bedHeightInches,
         rotationDegrees: bed.rotationDegrees,
+        locked: Boolean(bed.locked),
         color: bed.color,
         renderKind: bed.renderKind ?? null,
         renderTheme: bed.renderTheme ?? null,
@@ -83,6 +84,7 @@ function hydrateState(snapshot) {
       renderTheme: bed.renderTheme ?? null,
       placementMode: bed.placementMode ?? null,
       borderEdge: bed.borderEdge ?? null,
+      locked: Boolean(bed.locked),
     }, dimensions))
     : []
   const selectedBedId = beds.some((bed) => bed.id === source.selectedBedId)
@@ -205,14 +207,24 @@ export const useGardenStore = defineStore('garden', {
       }
 
       const currentBed = this.beds[index]
+      const normalizedUpdates = currentBed.locked
+        ? {
+            ...updates,
+            xFeet: currentBed.xFeet,
+            yFeet: currentBed.yFeet,
+            widthFeet: currentBed.widthFeet,
+            heightFeet: currentBed.heightFeet,
+            rotationDegrees: currentBed.rotationDegrees,
+          }
+        : updates
       const nextType = updates.type ? normalizeBedType(updates.type) : currentBed.type
-      const nextName = typeof updates.name === 'string' ? updates.name : currentBed.name
+      const nextName = typeof normalizedUpdates.name === 'string' ? normalizedUpdates.name : currentBed.name
       const currentAutoName = buildAutoAreaName(currentBed.type, this.getAreaSequenceNumber(currentBed))
 
       this.beds[index] = clampBedToGarden(
         {
           ...currentBed,
-          ...updates,
+          ...normalizedUpdates,
           name: nextType !== currentBed.type && nextName === currentAutoName
             ? buildAutoAreaName(nextType, this.getNextTypeSequenceNumber(nextType, currentBed.id))
             : nextName,
@@ -246,6 +258,17 @@ export const useGardenStore = defineStore('garden', {
 
       this.beds = this.beds.filter((bed) => bed.id !== this.selectedBedId)
       this.selectedBedId = null
+    },
+
+    toggleBedLock(id, locked = null) {
+      const bed = this.beds.find((item) => item.id === id)
+      if (!bed) {
+        return
+      }
+
+      this.updateBed(id, {
+        locked: locked ?? !bed.locked,
+      })
     },
 
     panViewport(deltaX, deltaY) {

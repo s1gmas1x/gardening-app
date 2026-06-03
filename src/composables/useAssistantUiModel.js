@@ -16,10 +16,8 @@ export function useAssistantUiModel(todayDashboard) {
       section: 'tasks',
       tooltip: 'Open Tasks',
       iconPaths: [
-        { d: 'M7 12.5L10 15.5L17 8.5' },
-        { d: 'M7 8H17' },
-        { d: 'M7 12H9' },
-        { d: 'M7 16H9' },
+        { d: 'M7.5 12.5L10.5 15.5L16.8 9.2', strokeWidth: 2.1 },
+        { d: 'M6.5 6.5H17.5V17.5H6.5Z', strokeWidth: 1.8, strokeLinejoin: 'round' },
       ],
     },
     {
@@ -34,8 +32,10 @@ export function useAssistantUiModel(todayDashboard) {
       section: 'trays',
       tooltip: 'Open Trays',
       iconPaths: [
-        { d: 'M7 9H17L15.5 18H8.5L7 9Z' },
-        { d: 'M6 7H18' },
+        { d: 'M6.5 8.5H17.5V17.5H6.5Z', strokeWidth: 1.8, strokeLinejoin: 'round' },
+        { d: 'M10.2 8.5V17.5', strokeWidth: 1.7 },
+        { d: 'M13.8 8.5V17.5', strokeWidth: 1.7 },
+        { d: 'M6.5 12.9H17.5', strokeWidth: 1.7 },
       ],
     },
     {

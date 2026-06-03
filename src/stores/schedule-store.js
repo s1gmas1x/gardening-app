@@ -9,6 +9,7 @@ import { usePropagationStore } from 'src/stores/propagation-store'
 import { buildPlantingBatch } from 'src/utils/planting-batches'
 
 const STORAGE_KEY = 'gardening-app:schedule'
+const WEATHER_STALE_AFTER_MS = 10 * 60 * 1000
 
 function createDefaultState() {
   return {
@@ -779,6 +780,45 @@ export const useScheduleStore = defineStore('schedule', {
       } finally {
         this.weatherPending = false
       }
+    },
+
+    hasWeatherLocation() {
+      return Boolean(this.zipCode.trim() || (this.latitude !== null && this.longitude !== null))
+    },
+
+    isWeatherStale(staleAfterMs = WEATHER_STALE_AFTER_MS) {
+      if (!this.hasWeatherLocation()) {
+        return false
+      }
+
+      if (!this.currentConditions || !this.lastUpdatedAt) {
+        return true
+      }
+
+      const updatedAtMs = new Date(this.lastUpdatedAt).getTime()
+
+      if (!Number.isFinite(updatedAtMs)) {
+        return true
+      }
+
+      return (Date.now() - updatedAtMs) >= staleAfterMs
+    },
+
+    async refreshWeatherIfStale(options = {}) {
+      const staleAfterMs = Number.isFinite(Number(options.staleAfterMs))
+        ? Number(options.staleAfterMs)
+        : WEATHER_STALE_AFTER_MS
+      const force = Boolean(options.force)
+
+      if (this.weatherPending || !this.hasWeatherLocation()) {
+        return false
+      }
+
+      if (!force && !this.isWeatherStale(staleAfterMs)) {
+        return false
+      }
+
+      return this.refreshWeather()
     },
 
     pruneTaskStatus(validTaskIds) {
