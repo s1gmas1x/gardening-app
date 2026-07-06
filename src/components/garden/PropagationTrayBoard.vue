@@ -1,14 +1,14 @@
 <template>
   <q-card flat bordered class="tray-card">
-    <q-card-section class="row items-start justify-between q-col-gutter-md">
-      <div class="col">
+    <q-card-section class="tray-card__header">
+      <div class="tray-card__intro">
         <div class="text-subtitle1 text-weight-medium">Seed Trays</div>
         <div class="text-caption text-grey-7">
           Wake up indoor starts here, then guide them from tray cells into the garden.
         </div>
       </div>
 
-      <div class="col-auto row q-gutter-sm">
+      <div class="tray-card__actions">
         <q-btn flat label="Add 50-Cell Tray" @click="$emit('create-tray', 50)" />
         <q-btn color="positive" unelevated label="Add 72-Cell Tray" @click="$emit('create-tray', 72)" />
       </div>
@@ -31,8 +31,8 @@
               Best fit right now: {{ demand.recommendedTrayName }} · {{ demand.recommendationReason }}
             </div>
 
-            <div class="row q-col-gutter-sm items-end">
-              <div class="col">
+            <div class="tray-demand__controls">
+              <div class="tray-demand__tray-select">
                 <q-select
                   v-model="selectedTrayByDemand[demand.batchId]"
                   :options="trayOptions"
@@ -44,7 +44,7 @@
                 />
               </div>
 
-              <div class="col-4">
+              <div class="tray-demand__cell-input">
                 <q-input
                   v-model.number="cellCountByDemand[demand.batchId]"
                   type="number"
@@ -57,7 +57,7 @@
               </div>
             </div>
 
-            <div class="row q-gutter-sm">
+            <div class="tray-demand__actions">
               <q-btn
                 color="positive"
                 unelevated
@@ -80,7 +80,7 @@
 
         <div v-if="trays.length" class="tray-board__list">
           <div v-for="tray in trays" :key="tray.id" class="tray-summary">
-            <div>
+            <div class="tray-summary__header">
               <div class="tray-summary__title">{{ tray.name }}</div>
               <div class="tray-summary__meta">{{ tray.usedCells }}/{{ tray.cellCount }} cells used · {{ tray.openCells }} open</div>
             </div>
@@ -246,13 +246,35 @@ function assignDemand(demand) {
 
 <style scoped>
 .tray-card {
-  border-radius: 20px;
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+.tray-card__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.tray-card__intro {
+  min-width: 0;
+}
+
+.tray-card__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tray-card__actions :deep(.q-btn) {
+  min-width: 0;
+  padding-inline: 10px;
 }
 
 .tray-board {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
 }
 
 .tray-board__column {
@@ -302,6 +324,32 @@ function assignDemand(demand) {
   color: #4c6b45;
 }
 
+.tray-demand__controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(116px, 0.42fr);
+  gap: 8px;
+  align-items: end;
+}
+
+.tray-demand__tray-select,
+.tray-demand__cell-input {
+  min-width: 0;
+}
+
+.tray-demand__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tray-demand__actions :deep(.q-btn) {
+  min-width: 0;
+}
+
+.tray-summary__header {
+  min-width: 0;
+}
+
 .tray-layout {
   display: grid;
   gap: 8px;
@@ -318,6 +366,7 @@ function assignDemand(demand) {
 .tray-layout__grid {
   display: grid;
   gap: 4px;
+  min-width: 0;
 }
 
 .tray-layout__cell {
@@ -325,10 +374,11 @@ function assignDemand(demand) {
   aspect-ratio: 1 / 1;
   display: grid;
   align-content: space-between;
-  padding: 4px 3px;
-  border-radius: 8px;
+  padding: 3px 2px;
+  border-radius: 6px;
   border: 1px solid rgba(95, 114, 89, 0.18);
   background: rgba(255, 255, 255, 0.88);
+  overflow: hidden;
 }
 
 .tray-layout__cell--filled {
@@ -337,16 +387,19 @@ function assignDemand(demand) {
 }
 
 .tray-layout__cell-index {
-  font-size: 9px;
+  font-size: 8px;
   line-height: 1;
   color: #7a8a73;
 }
 
 .tray-layout__cell-plant {
-  font-size: 11px;
+  overflow: hidden;
+  font-size: 10px;
   line-height: 1;
   font-weight: 700;
   text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tray-summary__assignments {
@@ -356,7 +409,7 @@ function assignDemand(demand) {
 
 .tray-summary__assignment {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   padding-top: 8px;
   border-top: 1px solid rgba(78, 101, 72, 0.1);
@@ -373,18 +426,33 @@ function assignDemand(demand) {
 }
 
 .tray-summary__assignment-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
 }
 
 .tray-summary__assignment-status {
-  width: 180px;
+  min-width: 0;
 }
 
-@media (max-width: 900px) {
-  .tray-board {
-    grid-template-columns: 1fr;
+@media (max-width: 440px) {
+  .tray-card__actions,
+  .tray-demand__controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tray-demand__actions :deep(.q-btn) {
+    flex: 1 1 160px;
+  }
+
+  .tray-summary__assignment-actions {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .tray-summary__assignment-actions :deep(.q-btn:first-child) {
+    grid-column: 1 / -1;
+    justify-self: start;
   }
 }
 </style>

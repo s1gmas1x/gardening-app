@@ -654,7 +654,7 @@ const props = defineProps({
     required: true,
   },
   currentGridMinorStepFeet: {
-    type: Number,
+    type: [Number, null],
     required: true,
   },
   plantingPoints: {

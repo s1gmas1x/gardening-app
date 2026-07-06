@@ -298,6 +298,7 @@
           :assistant-section="assistantSection"
           :assistant-tabs="assistantTabs"
           :schedule-store="scheduleStore"
+          :location-lookup-pending="locationLookupPending"
           :today-dashboard="todayDashboard"
           :planner-tasks="plannerTasks"
           :completed-task-count="completedTaskCount"
@@ -308,6 +309,9 @@
           :assignment-status-options="ASSIGNMENT_STATUS_OPTIONS"
           @update:open="isAssistantOpen = $event"
           @update:section="assistantSection = $event"
+          @update:zip-code="scheduleStore.updateScheduleSettings({ zipCode: $event })"
+          @lookup-zip="lookupZipClimate"
+          @use-browser-location="useBrowserLocation"
           @refresh-weather="scheduleStore.refreshWeather()"
           @toggle-task="scheduleStore.setTaskDone($event.taskId, $event.done)"
           @focus-task="focusTaskArea"
@@ -377,6 +381,7 @@ const selectedCaptureGroup = ref(null)
 const placementFeedback = ref('')
 const isTodayDashboardOpen = ref(false)
 const isAssistantOpen = ref(false)
+const locationLookupPending = ref(false)
 const assistantSection = ref('rhythm')
 const workspaceTheme = computed(() => (
   activeWorkspaceTab.value === 'layout'
@@ -623,6 +628,118 @@ function handleMeasurementRequest() {
 function openAssistant(section = null) {
   assistantSection.value = section ?? assistantTabs.value[0]?.name ?? 'rhythm'
   isAssistantOpen.value = true
+}
+
+async function lookupZipClimate() {
+  await scheduleStore.lookupZipCode()
+}
+
+async function useBrowserLocation() {
+  if (locationLookupPending.value) {
+    return
+  }
+
+  if (!navigator.geolocation) {
+    scheduleStore.weatherError = 'Browser location is not available in this environment.'
+    return
+  }
+
+  locationLookupPending.value = true
+  scheduleStore.weatherError = ''
+
+  try {
+    const position = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: false,
+        maximumAge: 10 * 60 * 1000,
+        timeout: 10000,
+      })
+    })
+    const latitude = position.coords.latitude
+    const longitude = position.coords.longitude
+    const reverseLocation = await reverseLookupLocation(latitude, longitude)
+
+    scheduleStore.updateLocationDetails({
+      locationName: '',
+      stateCode: '',
+      locationDisplayName: '',
+      latitude: null,
+      longitude: null,
+    })
+    scheduleStore.updateScheduleSettings({ zipCode: reverseLocation.zipCode })
+
+    if (reverseLocation.zipCode) {
+      const foundClimate = await scheduleStore.lookupZipCode()
+
+      if (!foundClimate && reverseLocation.locationDisplayName) {
+        scheduleStore.updateLocationDetails({
+          locationName: reverseLocation.locationName,
+          stateCode: reverseLocation.stateCode,
+          locationDisplayName: reverseLocation.locationDisplayName,
+          latitude: null,
+          longitude: null,
+        })
+      }
+
+      return
+    }
+
+    scheduleStore.zipLookupError = 'Could not find a ZIP from this location. Enter a ZIP code instead.'
+  } catch (error) {
+    scheduleStore.weatherError = error?.code === 1
+      ? 'Location permission was denied. Enter a ZIP code instead.'
+      : 'Unable to read browser location right now.'
+  } finally {
+    locationLookupPending.value = false
+  }
+}
+
+async function reverseLookupLocation(latitude, longitude) {
+  const params = new URLSearchParams({
+    format: 'jsonv2',
+    addressdetails: '1',
+    lat: String(latitude),
+    lon: String(longitude),
+  })
+
+  try {
+    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${params.toString()}`, {
+      headers: {
+        Accept: 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error('Reverse location lookup failed.')
+    }
+
+    const payload = await response.json()
+    const address = payload.address ?? {}
+    const zipCode = normalizePostalCode(address.postcode)
+    const cityName = address.city || address.town || address.village || address.hamlet || address.county || ''
+    const stateCode = address.state_code || ''
+    const stateName = stateCode ? '' : (address.state || '')
+    const locationName = [cityName, stateCode || stateName].filter(Boolean).join(', ')
+
+    return {
+      zipCode,
+      locationName: cityName,
+      stateCode,
+      locationDisplayName: locationName,
+    }
+  } catch {
+    return {
+      zipCode: '',
+      locationName: '',
+      stateCode: '',
+      locationDisplayName: '',
+    }
+  }
+}
+
+function normalizePostalCode(value) {
+  const match = typeof value === 'string' ? value.match(/\d{5}/) : null
+  return match?.[0] ?? ''
 }
 
 function toggleCapturePanel() {

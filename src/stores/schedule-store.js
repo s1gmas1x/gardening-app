@@ -55,8 +55,6 @@ function buildPersistedSnapshot(state) {
       locationName: state.locationName,
       stateCode: state.stateCode,
       locationDisplayName: state.locationDisplayName,
-      latitude: state.latitude,
-      longitude: state.longitude,
       usdaZone: state.usdaZone,
       averageLastFrostDate: state.averageLastFrostDate,
       averageFirstFrostDate: state.averageFirstFrostDate,
@@ -229,8 +227,8 @@ function hydrateState(snapshot) {
     locationDisplayName: typeof source.locationDisplayName === 'string'
       ? source.locationDisplayName
       : normalizeLocationDisplayName(source.locationName, source.stateCode),
-    latitude: Number.isFinite(Number(source.latitude)) ? Number(source.latitude) : null,
-    longitude: Number.isFinite(Number(source.longitude)) ? Number(source.longitude) : null,
+    latitude: null,
+    longitude: null,
     usdaZone: typeof source.usdaZone === 'string' ? source.usdaZone : '',
     averageLastFrostDate: normalizeDateString(source.averageLastFrostDate),
     averageFirstFrostDate: normalizeDateString(source.averageFirstFrostDate),

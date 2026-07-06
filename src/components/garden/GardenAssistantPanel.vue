@@ -18,6 +18,9 @@
         :model-value="assistantSection"
         dense
         align="left"
+        inline-label
+        outside-arrows
+        mobile-arrows
         active-color="positive"
         indicator-color="positive"
         class="assistant-panel__tabs"
@@ -42,7 +45,10 @@
       >
         <q-tab-panel name="weather" class="assistant-panel__panel">
           <WeatherSummaryCard
+            :zip-code="scheduleStore.zipCode"
             :location-display-name="scheduleStore.locationDisplayName"
+            :latitude="scheduleStore.latitude"
+            :longitude="scheduleStore.longitude"
             :current-conditions="scheduleStore.currentConditions"
             :daily-forecast="scheduleStore.dailyForecast"
             :active-alerts="scheduleStore.activeAlerts"
@@ -56,7 +62,13 @@
             :has-active-weather-alerts="scheduleStore.hasActiveWeatherAlerts"
             :weather-pending="scheduleStore.weatherPending"
             :weather-error="scheduleStore.weatherError"
+            :zip-lookup-pending="scheduleStore.zipLookupPending"
+            :zip-lookup-error="scheduleStore.zipLookupError"
+            :location-lookup-pending="locationLookupPending"
             :can-refresh="Boolean(scheduleStore.zipCode || (scheduleStore.latitude !== null && scheduleStore.longitude !== null))"
+            @update:zip-code="$emit('update:zipCode', $event)"
+            @lookup-zip="$emit('lookup-zip')"
+            @use-browser-location="$emit('use-browser-location')"
             @refresh-weather="$emit('refresh-weather')"
           />
         </q-tab-panel>
@@ -157,6 +169,10 @@ const props = defineProps({
     type: Object,
     required: true,
   },
+  locationLookupPending: {
+    type: Boolean,
+    required: true,
+  },
   todayDashboard: {
     type: Object,
     required: true,
@@ -194,6 +210,9 @@ const props = defineProps({
 defineEmits([
   'update:open',
   'update:section',
+  'update:zipCode',
+  'lookup-zip',
+  'use-browser-location',
   'refresh-weather',
   'toggle-task',
   'focus-task',
@@ -214,8 +233,8 @@ const alertItems = computed(() => (
 
 <style scoped>
 .assistant-panel {
-  width: min(430px, 100vw);
-  max-width: 430px;
+  width: min(520px, 100vw);
+  max-width: 520px;
   height: min(100vh, 100dvh);
   border-radius: 28px 0 0 28px;
   background: rgba(255, 252, 244, 0.98);
@@ -244,6 +263,21 @@ const alertItems = computed(() => (
 
 .assistant-panel__tabs {
   padding-inline: 8px;
+}
+
+.assistant-panel__tabs :deep(.q-tabs__content) {
+  flex-wrap: nowrap;
+}
+
+.assistant-panel__tabs :deep(.q-tab) {
+  min-height: 44px;
+  padding-inline: 12px;
+  white-space: nowrap;
+}
+
+.assistant-panel__tabs :deep(.q-tab__label) {
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .assistant-panel__panels {

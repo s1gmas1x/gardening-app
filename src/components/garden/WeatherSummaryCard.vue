@@ -20,6 +20,42 @@
       </div>
     </q-card-section>
 
+    <q-card-section class="weather-card__location-controls q-pt-none">
+      <q-form class="weather-card__zip-form" @submit.prevent="$emit('lookup-zip')">
+        <q-input
+          :model-value="zipCode"
+          outlined
+          dense
+          label="Home ZIP"
+          maxlength="10"
+          inputmode="numeric"
+          autocomplete="postal-code"
+          @update:model-value="$emit('update:zipCode', $event)"
+        />
+
+        <q-btn
+          color="positive"
+          unelevated
+          label="Find Climate"
+          :loading="zipLookupPending"
+          type="submit"
+        />
+      </q-form>
+
+      <q-btn
+        outline
+        color="secondary"
+        icon="my_location"
+        label="Use Location for ZIP"
+        :loading="locationLookupPending"
+        @click="$emit('use-browser-location')"
+      />
+
+      <div v-if="zipLookupError" class="weather-card__setup-error">
+        {{ zipLookupError }}
+      </div>
+    </q-card-section>
+
     <q-card-section class="row q-col-gutter-md q-pt-none">
       <div class="col-12 col-md-7">
         <div class="weather-card__location">
@@ -159,9 +195,21 @@
 import { computed } from 'vue'
 
 const props = defineProps({
+  zipCode: {
+    type: String,
+    required: true,
+  },
   locationDisplayName: {
     type: String,
     required: true,
+  },
+  latitude: {
+    type: Number,
+    default: null,
+  },
+  longitude: {
+    type: Number,
+    default: null,
   },
   currentConditions: {
     type: Object,
@@ -215,13 +263,30 @@ const props = defineProps({
     type: String,
     required: true,
   },
+  zipLookupPending: {
+    type: Boolean,
+    required: true,
+  },
+  zipLookupError: {
+    type: String,
+    required: true,
+  },
+  locationLookupPending: {
+    type: Boolean,
+    required: true,
+  },
   canRefresh: {
     type: Boolean,
     required: true,
   },
 })
 
-defineEmits(['refresh-weather'])
+defineEmits([
+  'update:zipCode',
+  'lookup-zip',
+  'use-browser-location',
+  'refresh-weather',
+])
 
 const justUpdated = computed(() => {
   if (props.weatherPending || !props.lastUpdatedAt) {
@@ -270,6 +335,25 @@ function formatTimestamp(value) {
 <style scoped>
 .weather-card {
   border-radius: 20px;
+}
+
+.weather-card__location-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+}
+
+.weather-card__zip-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.weather-card__setup-error {
+  grid-column: 1 / -1;
+  font-size: 0.78rem;
+  color: #c10015;
 }
 
 .weather-card__location {
@@ -422,6 +506,11 @@ function formatTimestamp(value) {
 }
 
 @media (max-width: 640px) {
+  .weather-card__location-controls,
+  .weather-card__zip-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .weather-card__forecast-day {
     grid-template-columns: 1fr;
   }
